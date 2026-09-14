@@ -14,6 +14,10 @@
   <!-- Feather Icons -->
   <script src="https://unpkg.com/feather-icons"></script>
   
+  <!-- Leaflet CSS & JS para visor interactivo de capas WMS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
   <!-- Google Fonts: Inter -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   
@@ -38,6 +42,10 @@
       background-color: rgba(14, 165, 233, 0.2);
       color: #38bdf8;
       border-color: rgba(14, 165, 233, 0.4);
+    }
+    /* Fix compatibilidad Leaflet con Tailwind CSS */
+    .leaflet-container img {
+      max-width: none !important;
     }
   </style>
 
@@ -343,9 +351,9 @@
         </div>
 
         <div class="flex items-center gap-2 shrink-0">
-          <a id="preview-open-external" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0B7BAF] hover:bg-[#08618B] text-white rounded-xl text-xs font-semibold transition shadow-sm" title="Abrir visor en pestaña nueva">
+          <a id="preview-open-external" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0B7BAF] hover:bg-[#08618B] text-white rounded-xl text-xs font-semibold transition shadow-sm" title="Abrir visor completo en GeoNode">
             <i data-feather="external-link" class="w-3.5 h-3.5"></i>
-            <span>Pantalla completa</span>
+            <span>Abrir en GeoNode</span>
           </a>
           <button id="close-preview-modal-btn" class="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Cerrar vista previa">
             <i data-feather="x" class="w-5 h-5"></i>
@@ -353,28 +361,15 @@
         </div>
       </div>
 
-      <!-- Modal Body (iFrame + Loader) -->
-      <div class="relative flex-1 bg-slate-100 dark:bg-slate-900">
-        <!-- Spinner de carga -->
-        <div id="preview-loader" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-100 dark:bg-slate-900 z-10 p-6 text-center">
-          <div class="w-10 h-10 border-4 border-sky-200 border-t-[#0B7BAF] rounded-full animate-spin"></div>
-          <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Cargando visor interactivo de GeoNode...</p>
-          <p class="text-[11px] text-slate-400 dark:text-slate-500 max-w-sm">Si el nodo demora o tiene restricciones de conexión, podés abrirlo directamente con el botón <b>Pantalla completa</b> arriba a la derecha.</p>
-        </div>
-
-        <iframe 
-          id="preview-iframe" 
-          src="" 
-          class="w-full h-full border-0"
-          allow="geolocation; fullscreen"
-          loading="lazy"
-        ></iframe>
+      <!-- Modal Body (Visor Leaflet) -->
+      <div class="relative flex-1 bg-slate-100 dark:bg-slate-900 overflow-hidden">
+        <div id="preview-map" class="w-full h-full"></div>
       </div>
 
       <!-- Modal Footer -->
       <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-2">
         <span class="truncate">
-          💡 Visualización interactiva oficial servida por nodo <b id="preview-node-name" class="text-slate-700 dark:text-slate-200">INTA</b>
+          🗺️ Capa WMS en vivo sobre OpenStreetMap &bull; Nodo <b id="preview-node-name" class="text-slate-700 dark:text-slate-200">INTA</b>
         </span>
         <div class="flex items-center gap-3">
           <a id="preview-dataset-link" href="#" target="_blank" rel="noopener noreferrer" class="text-[#0B7BAF] dark:text-sky-400 hover:underline font-semibold flex items-center gap-1">
@@ -745,14 +740,15 @@
 
       countEl.innerHTML = `Mostrando <b class="text-[#0B7BAF] dark:text-sky-400">${startIndex + 1}–${endIndex}</b> de <b>${total}</b> capas disponibles`;
 
+      currentPageItems = pageItems;
+
       // Renderizar Cards con estilo idéntico al referenciaformato
-      container.innerHTML = pageItems.map(layer => {
+      container.innerHTML = pageItems.map((layer, index) => {
         const isVector = (layer.layer_type || "VECTOR").toUpperCase() === "VECTOR";
         const badgeClass = isVector ? "badge-vector" : "badge-raster";
         const badgeText = isVector ? "VECTOR" : "RASTER";
         const title = layer.title || layer.layer_name;
         const abstract = layer.abstract || "<i>Sin descripción detallada en el servicio WMS.</i>";
-        const embedUrl = getLayerEmbedUrl(layer);
 
         const keywordsHtml = (layer.keywords && layer.keywords.length > 0)
           ? `<div class="flex flex-wrap gap-1.5 mt-3">
@@ -818,7 +814,7 @@
 
               <button 
                 type="button"
-                onclick="openPreviewModal('${escapeHtml(embedUrl)}', '${escapeHtml(title)}', '${escapeHtml(layer.layer_name)}', '${escapeHtml(layer.node)}', '${badgeText}', '${escapeHtml(layer.dataset_url)}')"
+                onclick="openPreviewModalByIndex(${index})"
                 class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-[#0B7BAF] dark:text-sky-300 rounded-xl font-semibold border border-sky-200 dark:border-sky-800/80 transition shadow-sm"
                 title="Abrir visor interactivo en ventana emergente"
               >
@@ -890,13 +886,16 @@
       document.getElementById("gis-modal").classList.remove("hidden");
     }
 
-    let previewTimer = null;
+    let leafletMap = null;
+    let currentWmsLayer = null;
+    let currentPageItems = [];
 
-    // Modal Vista Previa Interactivo (GeoNode Embed)
-    function openPreviewModal(embedUrl, title, layerName, nodeName, badgeText, datasetUrl) {
+    // Abrir Modal de Vista Previa con Visor WMS Leaflet nativo
+    function openPreviewModalByIndex(index) {
+      const layer = currentPageItems[index];
+      if (!layer) return;
+
       const modal = document.getElementById("preview-modal");
-      const iframe = document.getElementById("preview-iframe");
-      const loader = document.getElementById("preview-loader");
       const titleEl = document.getElementById("preview-title");
       const subtitleEl = document.getElementById("preview-subtitle");
       const badgeEl = document.getElementById("preview-badge");
@@ -904,44 +903,75 @@
       const extBtn = document.getElementById("preview-open-external");
       const dsLink = document.getElementById("preview-dataset-link");
 
-      // Garantizar que la URL de destino sea /embed limpia (sin #/ ni metadata_detail)
-      let cleanEmbed = embedUrl || "";
-      if (cleanEmbed.includes("/metadata_detail")) {
-        cleanEmbed = cleanEmbed.replace(/\/metadata_detail\/?$/, "/embed");
-      } else {
-        cleanEmbed = cleanEmbed.replace(/\/embed#\/?$/, "/embed").replace(/#\/?$/, "");
-      }
+      const isVector = (layer.layer_type || "VECTOR").toUpperCase() === "VECTOR";
+      const badgeText = isVector ? "VECTOR" : "RASTER";
+      const title = layer.title || layer.layer_name;
+      const embedUrl = getLayerEmbedUrl(layer);
 
       titleEl.textContent = title;
-      subtitleEl.textContent = layerName;
-      nodeEl.textContent = nodeName;
+      subtitleEl.textContent = layer.layer_name;
+      nodeEl.textContent = layer.node || "INTA";
       badgeEl.textContent = badgeText;
-      badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${badgeText === 'VECTOR' ? 'badge-vector' : 'badge-raster'}`;
+      badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${isVector ? 'badge-vector' : 'badge-raster'}`;
 
-      extBtn.href = cleanEmbed;
-      dsLink.href = datasetUrl || cleanEmbed;
+      // Enlaces externos a GeoNode oficial (se abren en pestaña nueva sin restricciones de iframe)
+      extBtn.href = embedUrl || layer.dataset_url || "#";
+      dsLink.href = layer.dataset_url || embedUrl || "#";
 
-      loader.classList.remove("hidden");
-      if (previewTimer) clearTimeout(previewTimer);
-      previewTimer = setTimeout(() => {
-        loader.classList.add("hidden");
-      }, 7000);
-
-      iframe.onload = () => {
-        if (previewTimer) clearTimeout(previewTimer);
-        loader.classList.add("hidden");
-      };
-
-      iframe.src = cleanEmbed;
       modal.classList.remove("hidden");
       feather.replace();
+
+      // Inicializar mapa Leaflet si aún no existe
+      if (!leafletMap) {
+        leafletMap = L.map("preview-map", {
+          zoomControl: true,
+          attributionControl: true
+        }).setView([-38.4161, -63.6167], 4);
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+        }).addTo(leafletMap);
+      }
+
+      // Remover capa previa si existía
+      if (currentWmsLayer) {
+        leafletMap.removeLayer(currentWmsLayer);
+        currentWmsLayer = null;
+      }
+
+      // Agregar capa WMS en vivo
+      if (layer.wms_url && layer.layer_name) {
+        currentWmsLayer = L.tileLayer.wms(layer.wms_url, {
+          layers: layer.layer_name,
+          format: "image/png",
+          transparent: true,
+          version: "1.1.1"
+        }).addTo(leafletMap);
+      }
+
+      // Ajustar al Bounding Box de la capa o centrado general
+      setTimeout(() => {
+        leafletMap.invalidateSize();
+        const bbox = layer.bbox;
+        if (bbox && Array.isArray(bbox) && bbox.length === 4) {
+          // bbox: [minx, miny, maxx, maxy] -> Leaflet: [[miny, minx], [maxy, maxx]]
+          const southWest = L.latLng(bbox[1], bbox[0]);
+          const northEast = L.latLng(bbox[3], bbox[2]);
+          const bounds = L.latLngBounds(southWest, northEast);
+          leafletMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+        } else {
+          leafletMap.setView([-38.4161, -63.6167], 4);
+        }
+      }, 150);
     }
 
     function closePreviewModal() {
       const modal = document.getElementById("preview-modal");
-      const iframe = document.getElementById("preview-iframe");
-      if (previewTimer) clearTimeout(previewTimer);
-      iframe.src = "about:blank";
+      if (currentWmsLayer && leafletMap) {
+        leafletMap.removeLayer(currentWmsLayer);
+        currentWmsLayer = null;
+      }
       modal.classList.add("hidden");
     }
 
