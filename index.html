@@ -321,6 +321,76 @@
 
 
   <!-- ============================================================ -->
+  <!-- MODAL VISTA PREVIA DEL MAPA (GeoNode Embed)                  -->
+  <!-- ============================================================ -->
+  <div id="preview-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-6 bg-slate-900/75 backdrop-blur-sm transition-opacity">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80">
+        <div class="flex items-center gap-2.5 overflow-hidden">
+          <span id="preview-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 badge-raster">
+            RASTER
+          </span>
+          <div class="truncate">
+            <h3 id="preview-title" class="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+              Título de la Capa
+            </h3>
+            <p id="preview-subtitle" class="text-xs text-slate-500 dark:text-slate-400 font-mono truncate">
+              geonode:layer_name
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <a id="preview-open-external" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0B7BAF] hover:bg-[#08618B] text-white rounded-xl text-xs font-semibold transition shadow-sm" title="Abrir visor en pestaña nueva">
+            <i data-feather="external-link" class="w-3.5 h-3.5"></i>
+            <span>Pantalla completa</span>
+          </a>
+          <button id="close-preview-modal-btn" class="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Cerrar vista previa">
+            <i data-feather="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body (iFrame + Loader) -->
+      <div class="relative flex-1 bg-slate-100 dark:bg-slate-900">
+        <!-- Spinner de carga -->
+        <div id="preview-loader" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-100 dark:bg-slate-900 z-10">
+          <div class="w-10 h-10 border-4 border-sky-200 border-t-[#0B7BAF] rounded-full animate-spin"></div>
+          <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Cargando visor interactivo de GeoNode...</p>
+        </div>
+
+        <iframe 
+          id="preview-iframe" 
+          src="" 
+          class="w-full h-full border-0"
+          allow="geolocation; fullscreen"
+          loading="lazy"
+        ></iframe>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-2">
+        <span class="truncate">
+          💡 Visualización interactiva oficial servida por nodo <b id="preview-node-name" class="text-slate-700 dark:text-slate-200">INTA</b>
+        </span>
+        <div class="flex items-center gap-3">
+          <a id="preview-dataset-link" href="#" target="_blank" rel="noopener noreferrer" class="text-[#0B7BAF] dark:text-sky-400 hover:underline font-semibold flex items-center gap-1">
+            <span>Ver ficha en GeoNode</span>
+            <i data-feather="arrow-up-right" class="w-3.5 h-3.5"></i>
+          </a>
+          <button id="close-preview-bottom-btn" class="px-4 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl text-xs transition">
+            Cerrar
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ============================================================ -->
   <!-- FOOTER INSTITUCIONAL (Estilo referenciaformato) -->
   <!-- ============================================================ -->
   <footer class="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700/60 py-8 mt-12 transition-colors">
@@ -528,6 +598,13 @@
       document.getElementById("close-gis-bottom-btn").addEventListener("click", () => gisModal.classList.add("hidden"));
       gisModal.addEventListener("click", (e) => { if (e.target === gisModal) gisModal.classList.add("hidden"); });
 
+      // Modal Vista Previa
+      const previewModal = document.getElementById("preview-modal");
+      document.getElementById("close-preview-modal-btn").addEventListener("click", closePreviewModal);
+      document.getElementById("close-preview-bottom-btn").addEventListener("click", closePreviewModal);
+      previewModal.addEventListener("click", (e) => { if (e.target === previewModal) closePreviewModal(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePreviewModal(); });
+
       // Botones Copiar
       document.querySelectorAll(".copy-btn").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -713,25 +790,28 @@
             <!-- Botones de Acción -->
             <div class="flex flex-wrap items-center gap-2 mt-5 pt-4 border-t border-slate-100 dark:border-slate-700/60 text-xs sm:text-sm">
               ${layer.dataset_url ? `
-                <a href="${escapeHtml(layer.dataset_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0B7BAF] hover:bg-[#08618B] text-white rounded-xl font-semibold transition shadow-sm">
-                  <i data-feather="map" class="w-4 h-4"></i>
-                  <span>Abrir en GeoNode</span>
+                <a href="${escapeHtml(layer.dataset_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0B7BAF] hover:bg-[#08618B] text-white rounded-xl font-semibold transition shadow-sm" title="Abrir ficha en el catálogo de GeoNode">
+                  <i data-feather="external-link" class="w-4 h-4"></i>
+                  <span>Ver en GeoNode</span>
                 </a>
               ` : ""}
 
               ${layer.metadata_url ? `
-                <a href="${escapeHtml(layer.metadata_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-semibold border border-slate-200 dark:border-slate-600 transition">
+                <a href="${escapeHtml(layer.metadata_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-semibold border border-slate-200 dark:border-slate-600 transition" title="Ver metadatos completos">
                   <i data-feather="file-text" class="w-4 h-4"></i>
                   <span>Ver Metadatos</span>
                 </a>
               ` : ""}
 
-              ${layer.wms_preview_url ? `
-                <a href="${escapeHtml(layer.wms_preview_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-semibold border border-slate-200 dark:border-slate-600 transition">
-                  <i data-feather="eye" class="w-4 h-4"></i>
-                  <span>Vista Previa WMS</span>
-                </a>
-              ` : ""}
+              <button 
+                type="button"
+                onclick="openPreviewModal('${escapeHtml(layer.embed_url || layer.wms_preview_url || layer.dataset_url)}', '${escapeHtml(title)}', '${escapeHtml(layer.layer_name)}', '${escapeHtml(layer.node)}', '${badgeText}', '${escapeHtml(layer.dataset_url)}')"
+                class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-[#0B7BAF] dark:text-sky-300 rounded-xl font-semibold border border-sky-200 dark:border-sky-800/80 transition shadow-sm"
+                title="Abrir visor interactivo en ventana emergente"
+              >
+                <i data-feather="eye" class="w-4 h-4"></i>
+                <span>Vista Previa</span>
+              </button>
             </div>
 
           </article>
@@ -795,6 +875,44 @@
       document.getElementById("modal-wms-url").value = wmsUrl;
       document.getElementById("modal-layer-name").value = layerName;
       document.getElementById("gis-modal").classList.remove("hidden");
+    }
+
+    // Modal Vista Previa Interactivo (GeoNode Embed)
+    function openPreviewModal(embedUrl, title, layerName, nodeName, badgeText, datasetUrl) {
+      const modal = document.getElementById("preview-modal");
+      const iframe = document.getElementById("preview-iframe");
+      const loader = document.getElementById("preview-loader");
+      const titleEl = document.getElementById("preview-title");
+      const subtitleEl = document.getElementById("preview-subtitle");
+      const badgeEl = document.getElementById("preview-badge");
+      const nodeEl = document.getElementById("preview-node-name");
+      const extBtn = document.getElementById("preview-open-external");
+      const dsLink = document.getElementById("preview-dataset-link");
+
+      titleEl.textContent = title;
+      subtitleEl.textContent = layerName;
+      nodeEl.textContent = nodeName;
+      badgeEl.textContent = badgeText;
+      badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${badgeText === 'VECTOR' ? 'badge-vector' : 'badge-raster'}`;
+
+      extBtn.href = embedUrl;
+      dsLink.href = datasetUrl || embedUrl;
+
+      loader.classList.remove("hidden");
+      iframe.onload = () => {
+        loader.classList.add("hidden");
+      };
+
+      iframe.src = embedUrl;
+      modal.classList.remove("hidden");
+      feather.replace();
+    }
+
+    function closePreviewModal() {
+      const modal = document.getElementById("preview-modal");
+      const iframe = document.getElementById("preview-iframe");
+      iframe.src = "";
+      modal.classList.add("hidden");
     }
 
     // Sanitizador básico
