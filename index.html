@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buscador de Capas WMS – IDGEO INTA</title>
+  
+  <!-- Tailwind CSS & Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <style>
+    /* Estilos personalizados */
+    .glass-header {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(10px);
+    }
+    .badge-vector {
+      background-color: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .badge-raster {
+      background-color: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+  <!-- Header -->
+  <header class="glass-header sticky top-0 z-30 border-b border-slate-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-2xl">🌍</span>
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Buscador de Capas WMS – IDGEO INTA
+            </h1>
+          </div>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Catálogo unificado y búsqueda instantánea de geoservicios de nodos INTA
+          </p>
+        </div>
+
+        <!-- Estadísticas del catálogo -->
+        <div class="flex items-center gap-4 text-xs sm:text-sm">
+          <div class="bg-slate-100 rounded-lg px-3 py-1.5 border border-slate-200">
+            <span class="text-slate-500">Capas:</span>
+            <span id="stat-total-layers" class="font-bold text-emerald-700 ml-1">...</span>
+          </div>
+          <div class="bg-slate-100 rounded-lg px-3 py-1.5 border border-slate-200">
+            <span class="text-slate-500">Nodos:</span>
+            <span id="stat-total-nodes" class="font-bold text-blue-700 ml-1">...</span>
+          </div>
+          <div class="hidden sm:block bg-slate-100 rounded-lg px-3 py-1.5 border border-slate-200">
+            <span class="text-slate-500">Actualizado:</span>
+            <span id="stat-updated" class="font-medium text-slate-700 ml-1">...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenedor Principal -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+    
+    <!-- Barra de Búsqueda y Filtros Rápidos -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 mb-6">
+      
+      <!-- Input de búsqueda -->
+      <div class="relative mb-4">
+        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+          <i data-lucide="search" class="w-5 h-5"></i>
+        </div>
+        <input
+          type="text"
+          id="search-input"
+          placeholder="Buscar por nombre, título, palabra clave (ej: suelos, salta, clima, cuenca, agua, límites)..."
+          class="w-full pl-11 pr-10 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-sm sm:text-base transition"
+        />
+        <button
+          id="clear-search"
+          class="hidden absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600"
+          title="Limpiar búsqueda"
+        >
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Filtros: Tipo de capa y controles de nodos -->
+      <div class="flex flex-wrap items-center justify-between gap-3 text-sm pt-2 border-t border-slate-100">
+        
+        <!-- Filtro tipo de capa -->
+        <div class="flex items-center gap-2">
+          <span class="text-slate-500 text-xs font-semibold uppercase tracking-wider">Tipo:</span>
+          <div class="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 text-xs sm:text-sm">
+            <button class="filter-type-btn px-3 py-1 rounded-md font-medium text-white bg-emerald-600 transition" data-type="ALL">Todos</button>
+            <button class="filter-type-btn px-3 py-1 rounded-md font-medium text-slate-600 hover:text-slate-900 transition" data-type="VECTOR">Vector</button>
+            <button class="filter-type-btn px-3 py-1 rounded-md font-medium text-slate-600 hover:text-slate-900 transition" data-type="RASTER">Raster</button>
+          </div>
+        </div>
+
+        <!-- Botones de selección de nodos -->
+        <div class="flex items-center gap-2">
+          <button id="toggle-nodes-panel" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg border border-slate-200 text-xs sm:text-sm transition">
+            <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+            <span>Filtrar por Región (<span id="selected-nodes-count">16</span>)</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Panel desplegable de selección de nodos -->
+      <div id="nodes-panel" class="hidden mt-4 pt-4 border-t border-slate-200">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Regiones y Nodos Disponibles</span>
+          <div class="flex items-center gap-3 text-xs">
+            <button id="select-all-nodes" class="text-emerald-600 hover:underline font-medium">Seleccionar todos</button>
+            <button id="deselect-all-nodes" class="text-slate-500 hover:underline">Deseleccionar</button>
+          </div>
+        </div>
+        <div id="nodes-checkboxes" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs sm:text-sm max-h-48 overflow-y-auto pr-1">
+          <!-- Checkboxes generados dinámicamente -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Indicador de estado de resultados -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+      <div id="results-count" class="text-sm font-medium text-slate-600">
+        Cargando catálogo...
+      </div>
+      <div id="pagination-top" class="flex items-center gap-2 text-xs sm:text-sm"></div>
+    </div>
+
+    <!-- Contenedor de Resultados (Cards) -->
+    <div id="results-container" class="grid grid-cols-1 gap-4">
+      <!-- Cards renderizadas dinámicamente -->
+    </div>
+
+    <!-- Paginación Inferior -->
+    <div id="pagination-bottom" class="flex justify-center items-center gap-2 mt-8 mb-6"></div>
+
+  </main>
+
+  <!-- Modal para copiar datos para QGIS / ArcGIS -->
+  <div id="gis-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <i data-lucide="layers" class="w-5 h-5 text-emerald-600"></i>
+          Conectar en QGIS / ArcGIS
+        </h3>
+        <button id="close-modal-btn" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-4 text-xs sm:text-sm">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">URL del Servicio WMS:</label>
+          <div class="flex items-center gap-2">
+            <input id="modal-wms-url" type="text" readonly class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-800 font-mono text-xs select-all focus:outline-none" />
+            <button class="copy-btn px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shrink-0" data-target="modal-wms-url">
+              Copiar
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Nombre técnico de la Capa (Layer Name):</label>
+          <div class="flex items-center gap-2">
+            <input id="modal-layer-name" type="text" readonly class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-800 font-mono text-xs select-all focus:outline-none" />
+            <button class="copy-btn px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shrink-0" data-target="modal-layer-name">
+              Copiar
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-600 text-xs">
+          💡 <b>En QGIS:</b> Ir a <i>Capa &gt; Añadir Capa &gt; Añadir capa WMS/WMTS...</i>, crear una nueva conexión con la URL copiada y seleccionar la capa por su nombre técnico.
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end">
+        <button id="close-modal-bottom-btn" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-sm transition">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4">
+      <p>INTA – IDE | Buscador de capas WMS para GitHub Pages | Arquitectura Offline-First</p>
+      <p class="mt-1 text-slate-400">0 peticiones a servidores en cada consulta · Sin riesgo de baneo de IP</p>
+    </div>
+  </footer>
+
+  <!-- Lógica de la aplicación en JavaScript -->
+  <script>
+    // Variables de estado
+    let allLayers = [];
+    let allNodes = new Set();
+    let selectedNodes = new Set();
+    let currentTypeFilter = "ALL";
+    let currentSearchTerm = "";
+    let currentPage = 1;
+    const ITEMS_PER_PAGE = 20;
+
+    // Normalizador de texto (quita acentos, diacríticos y pasa a minúsculas)
+    function normalizeText(str) {
+      if (!str) return "";
+      return str
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    // Inicialización al cargar la página
+    document.addEventListener("DOMContentLoaded", async () => {
+      lucide.createIcons();
+      setupEventListeners();
+      await loadCatalogData();
+    });
+
+    // Cargar datos de layers_cache.json
+    async function loadCatalogData() {
+      try {
+        const response = await fetch("layers_cache.json");
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        allLayers = data.layers || [];
+        
+        // Actualizar estadísticas del header
+        document.getElementById("stat-total-layers").textContent = allLayers.length.toLocaleString();
+        
+        // Nodos únicos
+        allLayers.forEach(l => {
+          if (l.node) allNodes.add(l.node);
+        });
+        selectedNodes = new Set(allNodes);
+
+        document.getElementById("stat-total-nodes").textContent = allNodes.size;
+
+        if (data.updated_at) {
+          const date = new Date(data.updated_at);
+          document.getElementById("stat-updated").textContent = date.toLocaleDateString("es-AR", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric"
+          });
+        }
+
+        renderNodeFilters();
+        applyFiltersAndRender();
+
+      } catch (err) {
+        console.error("Error al cargar layers_cache.json:", err);
+        document.getElementById("results-count").innerHTML = `
+          <div class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm">
+            <p class="font-bold">⚠️ No se pudo cargar el archivo <code>layers_cache.json</code>.</p>
+            <p class="mt-1">Asegurate de que el archivo <code>layers_cache.json</code> se encuentre en la misma carpeta que este <code>index.html</code>.</p>
+            <p class="mt-1 text-xs text-amber-700 font-mono">${err.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    // Configurar escuchadores de eventos
+    function setupEventListeners() {
+      const searchInput = document.getElementById("search-input");
+      const clearSearchBtn = document.getElementById("clear-search");
+
+      // Búsqueda en tiempo real con debounce
+      let debounceTimeout;
+      searchInput.addEventListener("input", (e) => {
+        clearTimeout(debounceTimeout);
+        currentSearchTerm = e.target.value.trim();
+        
+        if (currentSearchTerm) {
+          clearSearchBtn.classList.remove("hidden");
+        } else {
+          clearSearchBtn.classList.add("hidden");
+        }
+
+        debounceTimeout = setTimeout(() => {
+          currentPage = 1;
+          applyFiltersAndRender();
+        }, 200);
+      });
+
+      clearSearchBtn.addEventListener("click", () => {
+        searchInput.value = "";
+        currentSearchTerm = "";
+        clearSearchBtn.classList.add("hidden");
+        currentPage = 1;
+        applyFiltersAndRender();
+      });
+
+      // Filtro de tipo (ALL, VECTOR, RASTER)
+      document.querySelectorAll(".filter-type-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".filter-type-btn").forEach(b => {
+            b.classList.remove("bg-emerald-600", "text-white");
+            b.classList.add("text-slate-600");
+          });
+          btn.classList.remove("text-slate-600");
+          btn.classList.add("bg-emerald-600", "text-white");
+
+          currentTypeFilter = btn.getAttribute("data-type");
+          currentPage = 1;
+          applyFiltersAndRender();
+        });
+      });
+
+      // Panel desplegable de nodos
+      const toggleNodesBtn = document.getElementById("toggle-nodes-panel");
+      const nodesPanel = document.getElementById("nodes-panel");
+      toggleNodesBtn.addEventListener("click", () => {
+        nodesPanel.classList.toggle("hidden");
+      });
+
+      // Seleccionar / Deseleccionar todos los nodos
+      document.getElementById("select-all-nodes").addEventListener("click", () => {
+        selectedNodes = new Set(allNodes);
+        updateNodeCheckboxes();
+        currentPage = 1;
+        applyFiltersAndRender();
+      });
+
+      document.getElementById("deselect-all-nodes").addEventListener("click", () => {
+        selectedNodes.clear();
+        updateNodeCheckboxes();
+        currentPage = 1;
+        applyFiltersAndRender();
+      });
+
+      // Modal de GIS
+      document.getElementById("close-modal-btn").addEventListener("click", closeModal);
+      document.getElementById("close-modal-bottom-btn").addEventListener("click", closeModal);
+      document.getElementById("gis-modal").addEventListener("click", (e) => {
+        if (e.target.id === "gis-modal") closeModal();
+      });
+
+      // Botones de copiado genérico
+      document.querySelectorAll(".copy-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const targetId = btn.getAttribute("data-target");
+          const input = document.getElementById(targetId);
+          if (input) {
+            navigator.clipboard.writeText(input.value);
+            const originalText = btn.textContent;
+            btn.textContent = "¡Copiado!";
+            btn.classList.replace("bg-emerald-600", "bg-emerald-800");
+            setTimeout(() => {
+              btn.textContent = originalText;
+              btn.classList.replace("bg-emerald-800", "bg-emerald-600");
+            }, 1500);
+          }
+        });
+      });
+    }
+
+    // Renderizar panel de checkboxes para los nodos
+    function renderNodeFilters() {
+      const container = document.getElementById("nodes-checkboxes");
+      container.innerHTML = "";
+
+      Array.from(allNodes).sort().forEach(nodeName => {
+        const label = document.createElement("label");
+        label.className = "flex items-center gap-2 p-1.5 hover:bg-slate-100 rounded-lg cursor-pointer select-none";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = nodeName;
+        checkbox.checked = selectedNodes.has(nodeName);
+        checkbox.className = "rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4";
+
+        checkbox.addEventListener("change", (e) => {
+          if (e.target.checked) {
+            selectedNodes.add(nodeName);
+          } else {
+            selectedNodes.delete(nodeName);
+          }
+          document.getElementById("selected-nodes-count").textContent = selectedNodes.size;
+          currentPage = 1;
+          applyFiltersAndRender();
+        });
+
+        const span = document.createElement("span");
+        span.className = "truncate text-slate-700";
+        span.textContent = nodeName;
+
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        container.appendChild(label);
+      });
+
+      document.getElementById("selected-nodes-count").textContent = selectedNodes.size;
+    }
+
+    function updateNodeCheckboxes() {
+      document.querySelectorAll("#nodes-checkboxes input[type='checkbox']").forEach(cb => {
+        cb.checked = selectedNodes.has(cb.value);
+      });
+      document.getElementById("selected-nodes-count").textContent = selectedNodes.size;
+    }
+
+    // Filtrar y renderizar los resultados en memoria
+    function applyFiltersAndRender() {
+      const tokens = normalizeText(currentSearchTerm)
+        .split(/\s+/)
+        .filter(t => t.length > 1);
+
+      const filtered = allLayers.filter(layer => {
+        // 1. Filtro por nodo
+        if (!selectedNodes.has(layer.node)) return false;
+
+        // 2. Filtro por tipo
+        if (currentTypeFilter !== "ALL") {
+          const type = (layer.layer_type || "VECTOR").toUpperCase();
+          if (type !== currentTypeFilter) return false;
+        }
+
+        // 3. Filtro por términos de búsqueda (tokens)
+        if (tokens.length > 0) {
+          const haystack = normalizeText(
+            `${layer.title || ""} ${layer.layer_name || ""} ${layer.abstract || ""} ${(layer.keywords || []).join(" ")} ${layer.node || ""}`
+          );
+          return tokens.every(token => haystack.includes(token));
+        }
+
+        return true;
+      });
+
+      renderResults(filtered);
+    }
+
+    // Renderizar resultados paginados
+    function renderResults(layers) {
+      const container = document.getElementById("results-container");
+      const countEl = document.getElementById("results-count");
+      const total = layers.length;
+
+      if (total === 0) {
+        countEl.textContent = "No se encontraron capas.";
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl p-10 text-center border border-slate-200 shadow-sm">
+            <div class="text-4xl mb-3">🔍</div>
+            <h3 class="text-lg font-bold text-slate-800">No hubo coincidencias</h3>
+            <p class="text-slate-500 text-sm mt-1 max-w-md mx-auto">
+              Probá con otras palabras clave (ej: suelos, agua, clima, límites) o verificá que los nodos correspondientes estén seleccionados en el filtro.
+            </p>
+          </div>
+        `;
+        document.getElementById("pagination-top").innerHTML = "";
+        document.getElementById("pagination-bottom").innerHTML = "";
+        return;
+      }
+
+      const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+      const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, total);
+      const pageItems = layers.slice(startIndex, endIndex);
+
+      countEl.innerHTML = `Mostrando <b>${startIndex + 1}–${endIndex}</b> de <b>${total}</b> capas encontradas`;
+
+      // Renderizar Cards
+      container.innerHTML = pageItems.map(layer => {
+        const isVector = (layer.layer_type || "VECTOR").toUpperCase() === "VECTOR";
+        const badgeClass = isVector ? "badge-vector" : "badge-raster";
+        const badgeText = isVector ? "🟩 VECTOR" : "🟦 RASTER";
+        const title = layer.title || layer.layer_name;
+        const abstract = layer.abstract || "<i>Sin descripción disponible.</i>";
+
+        const keywordsHtml = (layer.keywords && layer.keywords.length > 0)
+          ? `<div class="flex flex-wrap gap-1.5 mt-3">
+              ${layer.keywords.slice(0, 6).map(k => `<span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-[11px] font-medium border border-slate-200">${k}</span>`).join("")}
+             </div>`
+          : "";
+
+        return `
+          <article class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-sm hover:shadow-md transition">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${badgeClass}">
+                  ${badgeText}
+                </span>
+                <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                  ${layer.node}
+                </span>
+              </div>
+              <button 
+                onclick="openGisModal('${escapeHtml(layer.wms_url)}', '${escapeHtml(layer.layer_name)}')"
+                class="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-emerald-600 bg-slate-50 hover:bg-emerald-50 px-2.5 py-1 rounded-lg border border-slate-200 transition font-medium"
+              >
+                <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+                <span>QGIS / ArcGIS</span>
+              </button>
+            </div>
+
+            <h2 class="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+              ${escapeHtml(title)}
+            </h2>
+
+            <p class="text-xs font-mono text-slate-500 mt-1 select-all">
+              ${escapeHtml(layer.layer_name)}
+            </p>
+
+            <p class="text-xs sm:text-sm text-slate-600 mt-2.5 leading-relaxed line-clamp-3">
+              ${abstract}
+            </p>
+
+            ${keywordsHtml}
+
+            <!-- Botones de Acción -->
+            <div class="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-slate-100 text-xs sm:text-sm">
+              ${layer.dataset_url ? `
+                <a href="${escapeHtml(layer.dataset_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shadow-sm">
+                  <i data-lucide="map" class="w-4 h-4"></i>
+                  <span>GeoNode</span>
+                </a>
+              ` : ""}
+
+              ${layer.metadata_url ? `
+                <a href="${escapeHtml(layer.metadata_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium border border-slate-200 transition">
+                  <i data-lucide="file-text" class="w-4 h-4"></i>
+                  <span>Metadatos</span>
+                </a>
+              ` : ""}
+
+              ${layer.wms_preview_url ? `
+                <a href="${escapeHtml(layer.wms_preview_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium border border-slate-200 transition">
+                  <i data-lucide="eye" class="w-4 h-4"></i>
+                  <span>Vista Previa</span>
+                </a>
+              ` : ""}
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      lucide.createIcons();
+      renderPagination(totalPages);
+    }
+
+    // Renderizar botones de paginación
+    function renderPagination(totalPages) {
+      const topContainer = document.getElementById("pagination-top");
+      const bottomContainer = document.getElementById("pagination-bottom");
+
+      if (totalPages <= 1) {
+        topContainer.innerHTML = "";
+        bottomContainer.innerHTML = "";
+        return;
+      }
+
+      const prevDisabled = currentPage === 1 ? "disabled opacity-40 cursor-not-allowed" : "";
+      const nextDisabled = currentPage === totalPages ? "disabled opacity-40 cursor-not-allowed" : "";
+
+      const html = `
+        <div class="inline-flex items-center gap-1.5">
+          <button 
+            onclick="changePage(${currentPage - 1})" 
+            ${prevDisabled} 
+            class="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-medium transition text-xs sm:text-sm"
+          >
+            ⬅️ Ant
+          </button>
+          
+          <span class="px-3 py-1.5 text-xs sm:text-sm text-slate-600 font-medium">
+            Página <b>${currentPage}</b> de <b>${totalPages}</b>
+          </span>
+
+          <button 
+            onclick="changePage(${currentPage + 1})" 
+            ${nextDisabled} 
+            class="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-medium transition text-xs sm:text-sm"
+          >
+            Sig ➡️
+          </button>
+        </div>
+      `;
+
+      topContainer.innerHTML = html;
+      bottomContainer.innerHTML = html;
+    }
+
+    function changePage(page) {
+      currentPage = page;
+      applyFiltersAndRender();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    // Modal QGIS
+    function openGisModal(wmsUrl, layerName) {
+      document.getElementById("modal-wms-url").value = wmsUrl;
+      document.getElementById("modal-layer-name").value = layerName;
+      document.getElementById("gis-modal").classList.remove("hidden");
+    }
+
+    function closeModal() {
+      document.getElementById("gis-modal").classList.add("hidden");
+    }
+
+    // Sanitizador básico de HTML
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
