@@ -32,7 +32,7 @@ def fetch_geonode_resources(node_url, timeout=12):
     Consulta la API v2 de GeoNode para obtener datasets del nodo:
     - subtype (raster vs vector 100% exacto)
     - detail_url (enlace directo al catálogo /catalogue/#/dataset/{id})
-    - embed_url (visor interactivo /datasets/{layer_name}/embed#/)
+    - embed_url (visor interactivo /datasets/{layer_name}/embed)
     - thumbnail_url
     """
     base = node_url.split("/geoserver")[0].rstrip("/")
@@ -59,12 +59,11 @@ def fetch_geonode_resources(node_url, timeout=12):
                 subtype = "RASTER" if subtype_raw == "RASTER" else ("VECTOR" if subtype_raw == "VECTOR" else None)
 
                 detail_url = res.get("detail_url") or (f"{base}/catalogue/#/dataset/{pk}" if pk else f"{base}/catalogue/#/dataset/{alternate}")
-                embed_url = res.get("embed_url") or f"{base}/datasets/{alternate}/embed#/"
-                if embed_url and not embed_url.endswith("/embed#/"):
-                    if embed_url.endswith("/embed"):
-                        embed_url = embed_url + "#/"
-                    else:
-                        embed_url = f"{base}/datasets/{alternate}/embed#/"
+                embed_url = res.get("embed_url") or f"{base}/datasets/{alternate}/embed"
+                if embed_url:
+                    embed_url = embed_url.rstrip("/#").rstrip("/")
+                    if not embed_url.endswith("/embed"):
+                        embed_url = f"{base}/datasets/{alternate}/embed"
 
                 entry = {
                     "pk": pk,
@@ -99,7 +98,7 @@ def build_geonode_urls(wms_url, layer_name):
     base = wms_url.split("/geoserver")[0].rstrip("/")
     dataset_url = f"{base}/catalogue/#/dataset/{layer_name}"
     catalogue_url = f"{base}/catalogue/#/dataset/{layer_name}"
-    embed_url = f"{base}/datasets/{layer_name}/embed#/"
+    embed_url = f"{base}/datasets/{layer_name}/embed"
     metadata_url = f"{base}/datasets/{layer_name}/metadata_detail"
     wms_preview_url = (
         f"{wms_url}?service=WMS&version=1.1.0&request=GetMap"
