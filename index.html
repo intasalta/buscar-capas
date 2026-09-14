@@ -1,208 +1,346 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="scroll-smooth">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Buscador de Capas WMS – IDGEO INTA</title>
   
-  <!-- Tailwind CSS & Lucide Icons -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+  
+  <!-- Feather Icons -->
+  <script src="https://unpkg.com/feather-icons"></script>
+  
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   
   <style>
-    /* Estilos personalizados */
-    .glass-header {
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(10px);
-    }
+    body { font-family: 'Inter', sans-serif; }
     .badge-vector {
-      background-color: #ecfdf5;
-      color: #065f46;
-      border: 1px solid #a7f3d0;
+      background-color: rgba(16, 185, 129, 0.12);
+      color: #059669;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+    .dark .badge-vector {
+      background-color: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.4);
     }
     .badge-raster {
-      background-color: #eff6ff;
-      color: #1e40af;
-      border: 1px solid #bfdbfe;
+      background-color: rgba(14, 165, 233, 0.12);
+      color: #0284c7;
+      border: 1px solid rgba(14, 165, 233, 0.25);
+    }
+    .dark .badge-raster {
+      background-color: rgba(14, 165, 233, 0.2);
+      color: #38bdf8;
+      border-color: rgba(14, 165, 233, 0.4);
     }
   </style>
-</head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
 
-  <!-- Header -->
-  <header class="glass-header sticky top-0 z-30 border-b border-slate-200 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+  <!-- Script previo para evitar parpadeo de modo oscuro -->
+  <script>
+    if (localStorage.theme === 'light') {
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col justify-between transition-colors duration-300">
+
+  <!-- ============================================================ -->
+  <!-- HEADER INSTITUCIONAL (Estilo referenciaformato) -->
+  <!-- ============================================================ -->
+  <header class="bg-gradient-to-r from-[#0B7BAF] via-[#08618B] to-[#054869] text-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+      
+      <!-- Logos y Título -->
+      <div class="flex items-center space-x-4">
+        <img src="./Logo_INTA.png" alt="Logo INTA" class="h-12 bg-white p-1 rounded-lg shadow-md shrink-0">
         <div>
-          <div class="flex items-center gap-2">
-            <span class="text-2xl">🌍</span>
-            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Buscador de Capas WMS – IDGEO INTA
-            </h1>
-          </div>
-          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Catálogo unificado y búsqueda instantánea de geoservicios de nodos INTA
+          <h1 class="text-lg sm:text-xl font-bold tracking-tight leading-tight">
+            Buscador de Capas WMS – IDGEO INTA
+          </h1>
+          <p class="text-blue-200 text-xs font-medium">
+            Infraestructura de Datos Espaciales y Geoservicios – Nodos Regionales del INTA
           </p>
         </div>
-
-        <!-- Estadísticas del catálogo -->
-        <div class="flex items-center gap-4 text-xs sm:text-sm">
-          <div class="bg-slate-100 rounded-lg px-3 py-1.5 border border-slate-200">
-            <span class="text-slate-500">Capas:</span>
-            <span id="stat-total-layers" class="font-bold text-emerald-700 ml-1">...</span>
-          </div>
-          <div class="bg-slate-100 rounded-lg px-3 py-1.5 border border-slate-200">
-            <span class="text-slate-500">Nodos:</span>
-            <span id="stat-total-nodes" class="font-bold text-blue-700 ml-1">...</span>
-          </div>
-          <div class="hidden sm:block bg-slate-100 rounded-lg px-3 py-1.5 border border-slate-200">
-            <span class="text-slate-500">Actualizado:</span>
-            <span id="stat-updated" class="font-medium text-slate-700 ml-1">...</span>
-          </div>
-        </div>
       </div>
+
+      <!-- Botones del Header -->
+      <div class="flex items-center gap-3">
+        <!-- Botón Acerca de / Quiénes Somos -->
+        <button id="info-modal-btn" type="button" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-blue-100 border border-white/20 text-xs font-semibold transition-all">
+          <i data-feather="info" class="h-4 w-4"></i>
+          <span>Acerca de IDGEO</span>
+        </button>
+
+        <!-- Botón Modo Oscuro / Claro -->
+        <button id="theme-toggle" type="button" class="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-blue-100 border border-white/20 transition-all" title="Cambiar tema">
+          <i id="theme-toggle-dark-icon" data-feather="moon" class="hidden h-5 w-5"></i>
+          <i id="theme-toggle-light-icon" data-feather="sun" class="hidden h-5 w-5 text-amber-300"></i>
+        </button>
+      </div>
+
     </div>
   </header>
 
-  <!-- Contenedor Principal -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
-    
-    <!-- Barra de Búsqueda y Filtros Rápidos -->
-    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 mb-6">
+
+  <!-- ============================================================ -->
+  <!-- CONTENIDO PRINCIPAL -->
+  <!-- ============================================================ -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8 flex-1">
+
+    <!-- BANNER Y RESUMEN ESTADÍSTICO -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700/60 transition-colors">
+      <div>
+        <h2 class="text-2xl font-extrabold text-slate-900 dark:text-white">
+          Catálogo Unificado de Capas Geoespaciales
+        </h2>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          Búsqueda instantánea en capas vectoriales y ráster de todos los nodos del INTA
+        </p>
+      </div>
+
+      <!-- Resumen en Píldoras -->
+      <div class="flex flex-wrap items-center gap-3 text-xs font-semibold">
+        <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
+          <i data-feather="layers" class="h-4 w-4"></i>
+          <span>Capas: <b id="stat-total-layers" class="font-bold">...</b></span>
+        </div>
+        <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+          <i data-feather="globe" class="h-4 w-4"></i>
+          <span>Nodos: <b id="stat-total-nodes" class="font-bold">...</b></span>
+        </div>
+        <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+          <i data-feather="calendar" class="h-4 w-4"></i>
+          <span>Actualizado: <span id="stat-updated" class="font-medium">...</span></span>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- CAJA DE BÚSQUEDA Y FILTROS -->
+    <section class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700/60 p-5 sm:p-6 transition-colors">
       
-      <!-- Input de búsqueda -->
+      <!-- Input de Búsqueda -->
       <div class="relative mb-4">
-        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-          <i data-lucide="search" class="w-5 h-5"></i>
+        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+          <i data-feather="search" class="w-5 h-5"></i>
         </div>
         <input
           type="text"
           id="search-input"
-          placeholder="Buscar por nombre, título, palabra clave (ej: suelos, salta, clima, cuenca, agua, límites)..."
-          class="w-full pl-11 pr-10 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-sm sm:text-base transition"
+          placeholder="Buscar capas por título, nombre técnico o tema (ej: suelos, salta, clima, cuenca, agua, límites)..."
+          class="w-full pl-11 pr-10 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0B7BAF] focus:bg-white dark:focus:bg-slate-900 text-sm sm:text-base transition"
         />
         <button
           id="clear-search"
-          class="hidden absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600"
+          class="hidden absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
           title="Limpiar búsqueda"
         >
-          <i data-lucide="x" class="w-5 h-5"></i>
+          <i data-feather="x" class="w-5 h-5"></i>
         </button>
       </div>
 
-      <!-- Filtros: Tipo de capa y controles de nodos -->
-      <div class="flex flex-wrap items-center justify-between gap-3 text-sm pt-2 border-t border-slate-100">
+      <!-- Filtros Rápidos -->
+      <div class="flex flex-wrap items-center justify-between gap-3 text-sm pt-3 border-t border-slate-100 dark:border-slate-700/60">
         
         <!-- Filtro tipo de capa -->
         <div class="flex items-center gap-2">
-          <span class="text-slate-500 text-xs font-semibold uppercase tracking-wider">Tipo:</span>
-          <div class="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 text-xs sm:text-sm">
-            <button class="filter-type-btn px-3 py-1 rounded-md font-medium text-white bg-emerald-600 transition" data-type="ALL">Todos</button>
-            <button class="filter-type-btn px-3 py-1 rounded-md font-medium text-slate-600 hover:text-slate-900 transition" data-type="VECTOR">Vector</button>
-            <button class="filter-type-btn px-3 py-1 rounded-md font-medium text-slate-600 hover:text-slate-900 transition" data-type="RASTER">Raster</button>
+          <span class="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">Tipo:</span>
+          <div class="inline-flex rounded-xl bg-slate-100 dark:bg-slate-900 p-1 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm">
+            <button class="filter-type-btn px-3 py-1 rounded-lg font-semibold text-white bg-[#0B7BAF] transition-all" data-type="ALL">Todos</button>
+            <button class="filter-type-btn px-3 py-1 rounded-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all" data-type="VECTOR">Vector</button>
+            <button class="filter-type-btn px-3 py-1 rounded-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all" data-type="RASTER">Raster</button>
           </div>
         </div>
 
-        <!-- Botones de selección de nodos -->
+        <!-- Botón Desplegable de Nodos / Regiones -->
         <div class="flex items-center gap-2">
-          <button id="toggle-nodes-panel" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg border border-slate-200 text-xs sm:text-sm transition">
-            <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+          <button id="toggle-nodes-panel" class="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-xl border border-slate-200 dark:border-slate-600 text-xs sm:text-sm transition-all">
+            <i data-feather="filter" class="w-4 h-4 text-[#0B7BAF]"></i>
             <span>Filtrar por Región (<span id="selected-nodes-count">16</span>)</span>
+            <i data-feather="chevron-down" class="w-3.5 h-3.5 opacity-60"></i>
           </button>
         </div>
 
       </div>
 
-      <!-- Panel desplegable de selección de nodos -->
-      <div id="nodes-panel" class="hidden mt-4 pt-4 border-t border-slate-200">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Regiones y Nodos Disponibles</span>
+      <!-- Panel Desplegable de Selección de Nodos -->
+      <div id="nodes-panel" class="hidden mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            Seleccionar Nodos WMS
+          </span>
           <div class="flex items-center gap-3 text-xs">
-            <button id="select-all-nodes" class="text-emerald-600 hover:underline font-medium">Seleccionar todos</button>
-            <button id="deselect-all-nodes" class="text-slate-500 hover:underline">Deseleccionar</button>
+            <button id="select-all-nodes" class="text-[#0B7BAF] dark:text-sky-400 hover:underline font-semibold">Seleccionar todos</button>
+            <button id="deselect-all-nodes" class="text-slate-500 dark:text-slate-400 hover:underline">Deseleccionar</button>
           </div>
         </div>
-        <div id="nodes-checkboxes" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs sm:text-sm max-h-48 overflow-y-auto pr-1">
-          <!-- Checkboxes generados dinámicamente -->
+        <div id="nodes-checkboxes" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs sm:text-sm max-h-52 overflow-y-auto pr-1">
+          <!-- Generados con JS -->
         </div>
       </div>
 
     </section>
 
-    <!-- Indicador de estado de resultados -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-      <div id="results-count" class="text-sm font-medium text-slate-600">
+
+    <!-- ENCABEZADO DE RESULTADOS Y CONTADOR -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div id="results-count" class="text-sm font-semibold text-slate-700 dark:text-slate-300">
         Cargando catálogo...
       </div>
       <div id="pagination-top" class="flex items-center gap-2 text-xs sm:text-sm"></div>
     </div>
 
-    <!-- Contenedor de Resultados (Cards) -->
+
+    <!-- GRILLA DE CAPAS (CARDS) -->
     <div id="results-container" class="grid grid-cols-1 gap-4">
-      <!-- Cards renderizadas dinámicamente -->
+      <!-- Generadas dinámicamente -->
     </div>
 
-    <!-- Paginación Inferior -->
-    <div id="pagination-bottom" class="flex justify-center items-center gap-2 mt-8 mb-6"></div>
+
+    <!-- PAGINACIÓN INFERIOR -->
+    <div id="pagination-bottom" class="flex justify-center items-center gap-2 pt-4 pb-8"></div>
 
   </main>
 
-  <!-- Modal para copiar datos para QGIS / ArcGIS -->
-  <div id="gis-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-200">
-        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-          <i data-lucide="layers" class="w-5 h-5 text-emerald-600"></i>
+
+  <!-- ============================================================ -->
+  <!-- MODAL ACERCA DE / QUIÉNES SOMOS (Estilo referenciaformato) -->
+  <!-- ============================================================ -->
+  <div id="info-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-slate-700 relative max-h-[90vh] overflow-y-auto">
+      
+      <!-- Botón para cerrar (X) -->
+      <button id="close-modal-btn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg transition-colors">
+        <i data-feather="x" class="h-6 w-6"></i>
+      </button>
+
+      <!-- Encabezado del Modal -->
+      <div class="flex items-center gap-3 mb-4">
+        <div class="p-3 bg-sky-500/10 text-[#0B7BAF] dark:text-sky-400 rounded-xl">
+          <i data-feather="help-circle" class="h-6 w-6"></i>
+        </div>
+        <div>
+          <h3 class="text-xl font-bold text-slate-900 dark:text-white">Acerca del Buscador de Capas</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">IDGEO – Infraestructura de Datos Espaciales del INTA</p>
+        </div>
+      </div>
+
+      <!-- Contenido explicativo -->
+      <div class="space-y-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+        <div>
+          <h4 class="font-semibold text-slate-800 dark:text-slate-100 mb-1">¿Qué es esta plataforma?</h4>
+          <p>
+            Este portal permite localizar, explorar y acceder a la totalidad de capas geoespaciales publicadas a través de servicios <b>WMS (Web Map Service)</b> y <b>GeoNode</b> por los diferentes Centros Regionales, Estaciones Experimentales y Nodos Temáticos del <b>Instituto Nacional de Tecnología Agropecuaria (INTA)</b>.
+          </p>
+        </div>
+
+        <hr class="border-slate-100 dark:border-slate-700/60">
+
+        <div>
+          <h4 class="font-semibold text-slate-800 dark:text-slate-100 mb-1">Tecnología y Búsqueda en Memoria</h4>
+          <p>
+            Para garantizar una experiencia fluida e instantánea sin saturar la infraestructura institucional, el sistema implementa una arquitectura de indexación que consulta el catálogo en memoria de tu navegador, permitiendo filtrar miles de capas sin retrasos de red ni bloqueos.
+          </p>
+        </div>
+
+        <div class="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
+          <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">Contacto y Soporte:</p>
+          <p class="text-xs">Instituto Nacional de Tecnología Agropecuaria (INTA)</p>
+          <p class="text-xs text-[#0B7BAF] dark:text-sky-400">Plataforma IDGEO - Infraestructura de Datos Espaciales</p>
+        </div>
+      </div>
+
+      <!-- Botón Entendido -->
+      <div class="mt-6 flex justify-end">
+        <button id="confirm-modal-btn" class="px-5 py-2 bg-[#0B7BAF] hover:bg-[#08618B] text-white text-xs font-semibold rounded-xl transition-all shadow-sm">
+          Entendido
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ============================================================ -->
+  <!-- MODAL CONECTAR EN QGIS / ARCGIS -->
+  <!-- ============================================================ -->
+  <div id="gis-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+      
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
+        <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <i data-feather="share-2" class="w-5 h-5 text-[#0B7BAF] dark:text-sky-400"></i>
           Conectar en QGIS / ArcGIS
         </h3>
-        <button id="close-modal-btn" class="text-slate-400 hover:text-slate-600">
-          <i data-lucide="x" class="w-5 h-5"></i>
+        <button id="close-gis-modal-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">
+          <i data-feather="x" class="w-5 h-5"></i>
         </button>
       </div>
 
       <div class="mt-4 space-y-4 text-xs sm:text-sm">
         <div>
-          <label class="block font-semibold text-slate-700 mb-1">URL del Servicio WMS:</label>
+          <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">URL del Servicio WMS:</label>
           <div class="flex items-center gap-2">
-            <input id="modal-wms-url" type="text" readonly class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-800 font-mono text-xs select-all focus:outline-none" />
-            <button class="copy-btn px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shrink-0" data-target="modal-wms-url">
+            <input id="modal-wms-url" type="text" readonly class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-200 font-mono text-xs select-all focus:outline-none" />
+            <button class="copy-btn px-3 py-2 bg-[#0B7BAF] hover:bg-[#08618B] text-white rounded-lg font-semibold transition shrink-0" data-target="modal-wms-url">
               Copiar
             </button>
           </div>
         </div>
 
         <div>
-          <label class="block font-semibold text-slate-700 mb-1">Nombre técnico de la Capa (Layer Name):</label>
+          <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre técnico de la Capa (Layer Name):</label>
           <div class="flex items-center gap-2">
-            <input id="modal-layer-name" type="text" readonly class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-800 font-mono text-xs select-all focus:outline-none" />
-            <button class="copy-btn px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shrink-0" data-target="modal-layer-name">
+            <input id="modal-layer-name" type="text" readonly class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-200 font-mono text-xs select-all focus:outline-none" />
+            <button class="copy-btn px-3 py-2 bg-[#0B7BAF] hover:bg-[#08618B] text-white rounded-lg font-semibold transition shrink-0" data-target="modal-layer-name">
               Copiar
             </button>
           </div>
         </div>
 
-        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-600 text-xs">
-          💡 <b>En QGIS:</b> Ir a <i>Capa &gt; Añadir Capa &gt; Añadir capa WMS/WMTS...</i>, crear una nueva conexión con la URL copiada y seleccionar la capa por su nombre técnico.
+        <div class="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs">
+          💡 <b>Instrucciones para QGIS:</b> Ir a <i>Capa &gt; Añadir Capa &gt; Añadir capa WMS/WMTS...</i>, crear una nueva conexión con la URL copiada arriba y añadir la capa por su nombre técnico.
         </div>
       </div>
 
       <div class="mt-6 flex justify-end">
-        <button id="close-modal-bottom-btn" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-sm transition">
+        <button id="close-gis-bottom-btn" class="px-5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl text-xs transition">
           Cerrar
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Footer -->
-  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
-    <div class="max-w-7xl mx-auto px-4">
-      <p>INTA – IDE | Buscador de capas WMS para GitHub Pages | Arquitectura Offline-First</p>
-      <p class="mt-1 text-slate-400">0 peticiones a servidores en cada consulta · Sin riesgo de baneo de IP</p>
+
+  <!-- ============================================================ -->
+  <!-- FOOTER INSTITUCIONAL (Estilo referenciaformato) -->
+  <!-- ============================================================ -->
+  <footer class="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700/60 py-8 mt-12 transition-colors">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col items-center gap-4 text-center">
+      <img src="./MECON-Agricultura-BLANCO.png" alt="Secretaría de Agricultura, Ganadería y Pesca" class="h-16 md:h-20 w-auto opacity-90 invert dark:invert-0 transition-all">
+      <div class="text-xs text-slate-500 dark:text-slate-400 space-y-1">
+        <p class="font-medium text-slate-600 dark:text-slate-300">
+          INTA – IDGEO | Catálogo de Geoservicios WMS
+        </p>
+        <p class="text-[11px] text-slate-400">
+          Desarrollado para consulta pública y conexión directa con Sistemas de Información Geográfica (SIG).
+        </p>
+      </div>
     </div>
   </footer>
 
-  <!-- Lógica de la aplicación en JavaScript -->
+
+  <!-- ============================================================ -->
+  <!-- LÓGICA DE APLICACIÓN EN JAVASCRIPT -->
+  <!-- ============================================================ -->
   <script>
     // Variables de estado
     let allLayers = [];
@@ -213,7 +351,7 @@
     let currentPage = 1;
     const ITEMS_PER_PAGE = 20;
 
-    // Normalizador de texto (quita acentos, diacríticos y pasa a minúsculas)
+    // Normalizador de texto (quita tildes y diacríticos)
     function normalizeText(str) {
       if (!str) return "";
       return str
@@ -224,26 +362,53 @@
 
     // Inicialización al cargar la página
     document.addEventListener("DOMContentLoaded", async () => {
-      lucide.createIcons();
+      initTheme();
       setupEventListeners();
+      feather.replace();
       await loadCatalogData();
     });
+
+    // Control de Modo Oscuro / Claro
+    function initTheme() {
+      const themeToggleBtn = document.getElementById('theme-toggle');
+      const darkIcon = document.getElementById('theme-toggle-dark-icon');
+      const lightIcon = document.getElementById('theme-toggle-light-icon');
+
+      if (document.documentElement.classList.contains('dark')) {
+        lightIcon.classList.remove('hidden');
+      } else {
+        darkIcon.classList.remove('hidden');
+      }
+
+      themeToggleBtn.addEventListener('click', function() {
+        darkIcon.classList.toggle('hidden');
+        lightIcon.classList.toggle('hidden');
+
+        if (document.documentElement.classList.contains('dark')) {
+          document.documentElement.classList.remove('dark');
+          localStorage.setItem('theme', 'light');
+        } else {
+          document.documentElement.classList.add('dark');
+          localStorage.setItem('theme', 'dark');
+        }
+      });
+    }
 
     // Cargar datos de layers_cache.json
     async function loadCatalogData() {
       try {
         const response = await fetch("layers_cache.json");
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(`HTTP ${response.status}: no se pudo acceder a layers_cache.json`);
         }
         const data = await response.json();
         
         allLayers = data.layers || [];
         
-        // Actualizar estadísticas del header
+        // Actualizar estadísticas del banner
         document.getElementById("stat-total-layers").textContent = allLayers.length.toLocaleString();
         
-        // Nodos únicos
+        // Recopilar nodos únicos
         allLayers.forEach(l => {
           if (l.node) allNodes.add(l.node);
         });
@@ -264,23 +429,22 @@
         applyFiltersAndRender();
 
       } catch (err) {
-        console.error("Error al cargar layers_cache.json:", err);
+        console.error("Error cargando layers_cache.json:", err);
         document.getElementById("results-count").innerHTML = `
-          <div class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm">
+          <div class="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 p-4 rounded-2xl text-sm">
             <p class="font-bold">⚠️ No se pudo cargar el archivo <code>layers_cache.json</code>.</p>
-            <p class="mt-1">Asegurate de que el archivo <code>layers_cache.json</code> se encuentre en la misma carpeta que este <code>index.html</code>.</p>
-            <p class="mt-1 text-xs text-amber-700 font-mono">${err.message}</p>
+            <p class="mt-1">Verificá que el archivo se encuentre en la misma carpeta que este HTML o ejecutá el script de indexación.</p>
           </div>
         `;
       }
     }
 
-    // Configurar escuchadores de eventos
+    // Configurar Eventos
     function setupEventListeners() {
       const searchInput = document.getElementById("search-input");
       const clearSearchBtn = document.getElementById("clear-search");
 
-      // Búsqueda en tiempo real con debounce
+      // Búsqueda en tiempo real
       let debounceTimeout;
       searchInput.addEventListener("input", (e) => {
         clearTimeout(debounceTimeout);
@@ -295,7 +459,7 @@
         debounceTimeout = setTimeout(() => {
           currentPage = 1;
           applyFiltersAndRender();
-        }, 200);
+        }, 180);
       });
 
       clearSearchBtn.addEventListener("click", () => {
@@ -310,11 +474,11 @@
       document.querySelectorAll(".filter-type-btn").forEach(btn => {
         btn.addEventListener("click", () => {
           document.querySelectorAll(".filter-type-btn").forEach(b => {
-            b.classList.remove("bg-emerald-600", "text-white");
-            b.classList.add("text-slate-600");
+            b.classList.remove("bg-[#0B7BAF]", "text-white");
+            b.classList.add("text-slate-600", "dark:text-slate-400");
           });
-          btn.classList.remove("text-slate-600");
-          btn.classList.add("bg-emerald-600", "text-white");
+          btn.classList.remove("text-slate-600", "dark:text-slate-400");
+          btn.classList.add("bg-[#0B7BAF]", "text-white");
 
           currentTypeFilter = btn.getAttribute("data-type");
           currentPage = 1;
@@ -322,14 +486,14 @@
         });
       });
 
-      // Panel desplegable de nodos
+      // Toggle Panel de Nodos
       const toggleNodesBtn = document.getElementById("toggle-nodes-panel");
       const nodesPanel = document.getElementById("nodes-panel");
       toggleNodesBtn.addEventListener("click", () => {
         nodesPanel.classList.toggle("hidden");
       });
 
-      // Seleccionar / Deseleccionar todos los nodos
+      // Seleccionar / Deseleccionar todos
       document.getElementById("select-all-nodes").addEventListener("click", () => {
         selectedNodes = new Set(allNodes);
         updateNodeCheckboxes();
@@ -344,46 +508,59 @@
         applyFiltersAndRender();
       });
 
-      // Modal de GIS
-      document.getElementById("close-modal-btn").addEventListener("click", closeModal);
-      document.getElementById("close-modal-bottom-btn").addEventListener("click", closeModal);
-      document.getElementById("gis-modal").addEventListener("click", (e) => {
-        if (e.target.id === "gis-modal") closeModal();
-      });
+      // Modal Acerca de IDGEO
+      const infoModalBtn = document.getElementById('info-modal-btn');
+      const infoModal = document.getElementById('info-modal');
+      const closeModalBtn = document.getElementById('close-modal-btn');
+      const confirmModalBtn = document.getElementById('confirm-modal-btn');
 
-      // Botones de copiado genérico
+      function openInfoModal() { infoModal.classList.remove('hidden'); }
+      function closeInfoModal() { infoModal.classList.add('hidden'); }
+
+      infoModalBtn.addEventListener('click', openInfoModal);
+      closeModalBtn.addEventListener('click', closeInfoModal);
+      confirmModalBtn.addEventListener('click', closeInfoModal);
+      infoModal.addEventListener('click', (e) => { if (e.target === infoModal) closeInfoModal(); });
+
+      // Modal GIS
+      const gisModal = document.getElementById("gis-modal");
+      document.getElementById("close-gis-modal-btn").addEventListener("click", () => gisModal.classList.add("hidden"));
+      document.getElementById("close-gis-bottom-btn").addEventListener("click", () => gisModal.classList.add("hidden"));
+      gisModal.addEventListener("click", (e) => { if (e.target === gisModal) gisModal.classList.add("hidden"); });
+
+      // Botones Copiar
       document.querySelectorAll(".copy-btn").forEach(btn => {
         btn.addEventListener("click", () => {
           const targetId = btn.getAttribute("data-target");
           const input = document.getElementById(targetId);
           if (input) {
             navigator.clipboard.writeText(input.value);
-            const originalText = btn.textContent;
+            const orig = btn.textContent;
             btn.textContent = "¡Copiado!";
-            btn.classList.replace("bg-emerald-600", "bg-emerald-800");
+            btn.classList.replace("bg-[#0B7BAF]", "bg-emerald-600");
             setTimeout(() => {
-              btn.textContent = originalText;
-              btn.classList.replace("bg-emerald-800", "bg-emerald-600");
+              btn.textContent = orig;
+              btn.classList.replace("bg-emerald-600", "bg-[#0B7BAF]");
             }, 1500);
           }
         });
       });
     }
 
-    // Renderizar panel de checkboxes para los nodos
+    // Renderizar Checkboxes de Nodos
     function renderNodeFilters() {
       const container = document.getElementById("nodes-checkboxes");
       container.innerHTML = "";
 
       Array.from(allNodes).sort().forEach(nodeName => {
         const label = document.createElement("label");
-        label.className = "flex items-center gap-2 p-1.5 hover:bg-slate-100 rounded-lg cursor-pointer select-none";
+        label.className = "flex items-center gap-2 p-2 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl cursor-pointer select-none transition-colors";
 
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.value = nodeName;
         checkbox.checked = selectedNodes.has(nodeName);
-        checkbox.className = "rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4";
+        checkbox.className = "rounded border-slate-300 dark:border-slate-600 text-[#0B7BAF] focus:ring-[#0B7BAF] w-4 h-4";
 
         checkbox.addEventListener("change", (e) => {
           if (e.target.checked) {
@@ -397,7 +574,7 @@
         });
 
         const span = document.createElement("span");
-        span.className = "truncate text-slate-700";
+        span.className = "truncate text-slate-700 dark:text-slate-300 text-xs";
         span.textContent = nodeName;
 
         label.appendChild(checkbox);
@@ -415,7 +592,7 @@
       document.getElementById("selected-nodes-count").textContent = selectedNodes.size;
     }
 
-    // Filtrar y renderizar los resultados en memoria
+    // Filtrar capas en memoria
     function applyFiltersAndRender() {
       const tokens = normalizeText(currentSearchTerm)
         .split(/\s+/)
@@ -431,7 +608,7 @@
           if (type !== currentTypeFilter) return false;
         }
 
-        // 3. Filtro por términos de búsqueda (tokens)
+        // 3. Filtro por términos (tokens)
         if (tokens.length > 0) {
           const haystack = normalizeText(
             `${layer.title || ""} ${layer.layer_name || ""} ${layer.abstract || ""} ${(layer.keywords || []).join(" ")} ${layer.node || ""}`
@@ -454,14 +631,17 @@
       if (total === 0) {
         countEl.textContent = "No se encontraron capas.";
         container.innerHTML = `
-          <div class="bg-white rounded-2xl p-10 text-center border border-slate-200 shadow-sm">
-            <div class="text-4xl mb-3">🔍</div>
-            <h3 class="text-lg font-bold text-slate-800">No hubo coincidencias</h3>
-            <p class="text-slate-500 text-sm mt-1 max-w-md mx-auto">
-              Probá con otras palabras clave (ej: suelos, agua, clima, límites) o verificá que los nodos correspondientes estén seleccionados en el filtro.
+          <div class="bg-white dark:bg-slate-800 rounded-2xl p-10 text-center border border-slate-200 dark:border-slate-700/60 shadow-sm transition-colors">
+            <div class="p-3 bg-sky-500/10 text-[#0B7BAF] dark:text-sky-400 rounded-2xl inline-block mb-3">
+              <i data-feather="search" class="w-8 h-8"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800 dark:text-white">Sin coincidencias para la búsqueda</h3>
+            <p class="text-slate-500 dark:text-slate-400 text-sm mt-1 max-w-md mx-auto">
+              Probá con otras palabras clave (ej: suelos, agua, clima, cuencas) o verificá que los nodos correspondientes estén marcados en el filtro.
             </p>
           </div>
         `;
+        feather.replace();
         document.getElementById("pagination-top").innerHTML = "";
         document.getElementById("pagination-bottom").innerHTML = "";
         return;
@@ -474,88 +654,95 @@
       const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, total);
       const pageItems = layers.slice(startIndex, endIndex);
 
-      countEl.innerHTML = `Mostrando <b>${startIndex + 1}–${endIndex}</b> de <b>${total}</b> capas encontradas`;
+      countEl.innerHTML = `Mostrando <b class="text-[#0B7BAF] dark:text-sky-400">${startIndex + 1}–${endIndex}</b> de <b>${total}</b> capas disponibles`;
 
-      // Renderizar Cards
+      // Renderizar Cards con estilo idéntico al referenciaformato
       container.innerHTML = pageItems.map(layer => {
         const isVector = (layer.layer_type || "VECTOR").toUpperCase() === "VECTOR";
         const badgeClass = isVector ? "badge-vector" : "badge-raster";
-        const badgeText = isVector ? "🟩 VECTOR" : "🟦 RASTER";
+        const badgeText = isVector ? "VECTOR" : "RASTER";
         const title = layer.title || layer.layer_name;
-        const abstract = layer.abstract || "<i>Sin descripción disponible.</i>";
+        const abstract = layer.abstract || "<i>Sin descripción detallada en el servicio WMS.</i>";
 
         const keywordsHtml = (layer.keywords && layer.keywords.length > 0)
           ? `<div class="flex flex-wrap gap-1.5 mt-3">
-              ${layer.keywords.slice(0, 6).map(k => `<span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-[11px] font-medium border border-slate-200">${k}</span>`).join("")}
+              ${layer.keywords.slice(0, 7).map(k => `<span class="bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-lg text-[11px] font-medium border border-slate-200 dark:border-slate-600">${escapeHtml(k)}</span>`).join("")}
              </div>`
           : "";
 
         return `
-          <article class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-sm hover:shadow-md transition">
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <article class="bg-white dark:bg-slate-800 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-all">
+            
+            <!-- Encabezado de la Tarjeta -->
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
               <div class="flex items-center gap-2">
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${badgeClass}">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeClass}">
                   ${badgeText}
                 </span>
-                <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
-                  ${layer.node}
+                <span class="text-xs font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/70 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-600">
+                  ${escapeHtml(layer.node)}
                 </span>
               </div>
+
+              <!-- Botón QGIS / ArcGIS -->
               <button 
                 onclick="openGisModal('${escapeHtml(layer.wms_url)}', '${escapeHtml(layer.layer_name)}')"
-                class="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-emerald-600 bg-slate-50 hover:bg-emerald-50 px-2.5 py-1 rounded-lg border border-slate-200 transition font-medium"
+                class="inline-flex items-center gap-1.5 text-xs text-[#0B7BAF] dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-700/60 px-3 py-1.5 rounded-xl border border-sky-500/20 font-semibold transition-all"
               >
-                <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+                <i data-feather="share-2" class="w-3.5 h-3.5"></i>
                 <span>QGIS / ArcGIS</span>
               </button>
             </div>
 
-            <h2 class="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+            <!-- Título y Nombre Técnico -->
+            <h3 class="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white leading-snug">
               ${escapeHtml(title)}
-            </h2>
+            </h3>
 
-            <p class="text-xs font-mono text-slate-500 mt-1 select-all">
+            <p class="text-xs font-mono text-slate-500 dark:text-slate-400 mt-1 select-all">
               ${escapeHtml(layer.layer_name)}
             </p>
 
-            <p class="text-xs sm:text-sm text-slate-600 mt-2.5 leading-relaxed line-clamp-3">
+            <!-- Abstract -->
+            <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-3 leading-relaxed line-clamp-3">
               ${abstract}
             </p>
 
             ${keywordsHtml}
 
             <!-- Botones de Acción -->
-            <div class="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-slate-100 text-xs sm:text-sm">
+            <div class="flex flex-wrap items-center gap-2 mt-5 pt-4 border-t border-slate-100 dark:border-slate-700/60 text-xs sm:text-sm">
               ${layer.dataset_url ? `
-                <a href="${escapeHtml(layer.dataset_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shadow-sm">
-                  <i data-lucide="map" class="w-4 h-4"></i>
-                  <span>GeoNode</span>
+                <a href="${escapeHtml(layer.dataset_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0B7BAF] hover:bg-[#08618B] text-white rounded-xl font-semibold transition shadow-sm">
+                  <i data-feather="map" class="w-4 h-4"></i>
+                  <span>Abrir en GeoNode</span>
                 </a>
               ` : ""}
 
               ${layer.metadata_url ? `
-                <a href="${escapeHtml(layer.metadata_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium border border-slate-200 transition">
-                  <i data-lucide="file-text" class="w-4 h-4"></i>
-                  <span>Metadatos</span>
+                <a href="${escapeHtml(layer.metadata_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-semibold border border-slate-200 dark:border-slate-600 transition">
+                  <i data-feather="file-text" class="w-4 h-4"></i>
+                  <span>Ver Metadatos</span>
                 </a>
               ` : ""}
 
               ${layer.wms_preview_url ? `
-                <a href="${escapeHtml(layer.wms_preview_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium border border-slate-200 transition">
-                  <i data-lucide="eye" class="w-4 h-4"></i>
-                  <span>Vista Previa</span>
+                <a href="${escapeHtml(layer.wms_preview_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-semibold border border-slate-200 dark:border-slate-600 transition">
+                  <i data-feather="eye" class="w-4 h-4"></i>
+                  <span>Vista Previa WMS</span>
                 </a>
               ` : ""}
             </div>
+
           </article>
         `;
       }).join("");
 
-      lucide.createIcons();
+      feather.replace();
       renderPagination(totalPages);
     }
 
-    // Renderizar botones de paginación
+    // Renderizar controles de paginación
     function renderPagination(totalPages) {
       const topContainer = document.getElementById("pagination-top");
       const bottomContainer = document.getElementById("pagination-bottom");
@@ -570,23 +757,23 @@
       const nextDisabled = currentPage === totalPages ? "disabled opacity-40 cursor-not-allowed" : "";
 
       const html = `
-        <div class="inline-flex items-center gap-1.5">
+        <div class="inline-flex items-center gap-2">
           <button 
             onclick="changePage(${currentPage - 1})" 
             ${prevDisabled} 
-            class="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-medium transition text-xs sm:text-sm"
+            class="px-3.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 font-semibold transition text-xs sm:text-sm shadow-sm"
           >
             ⬅️ Ant
           </button>
           
-          <span class="px-3 py-1.5 text-xs sm:text-sm text-slate-600 font-medium">
-            Página <b>${currentPage}</b> de <b>${totalPages}</b>
+          <span class="px-3 py-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium">
+            Página <b class="text-[#0B7BAF] dark:text-sky-400">${currentPage}</b> de <b>${totalPages}</b>
           </span>
 
           <button 
             onclick="changePage(${currentPage + 1})" 
             ${nextDisabled} 
-            class="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-medium transition text-xs sm:text-sm"
+            class="px-3.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 font-semibold transition text-xs sm:text-sm shadow-sm"
           >
             Sig ➡️
           </button>
@@ -610,11 +797,7 @@
       document.getElementById("gis-modal").classList.remove("hidden");
     }
 
-    function closeModal() {
-      document.getElementById("gis-modal").classList.add("hidden");
-    }
-
-    // Sanitizador básico de HTML
+    // Sanitizador básico
     function escapeHtml(str) {
       if (!str) return "";
       return String(str)

@@ -1,0 +1,84 @@
+{
+  "wms_sources": [
+    {
+      "id": "geo-backend",
+      "nombre": "NODO Nacional",
+      "url": "https://geo-backend.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo01",
+      "nombre": "Región Salta – Jujuy",
+      "url": "https://geo-nodo01.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo02",
+      "nombre": "Región Santiago del Estero – Tucumán",
+      "url": "https://geo-nodo02.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo03",
+      "nombre": "Región Entre Ríos",
+      "url": "https://geo-nodo03.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo04",
+      "nombre": "Región Río Negro – Neuquén",
+      "url": "https://geo-nodo04.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo05",
+      "nombre": "CNIA – Centro Nacional de Investigaciones Agropecuarias",
+      "url": "https://geo-nodo05.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo06",
+      "nombre": "Región Patagonia Sur",
+      "url": "https://geo-nodo06.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo07",
+      "nombre": "Región Buenos Aires",
+      "url": "https://geo-nodo07.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo08",
+      "nombre": "Región Córdoba",
+      "url": "https://geo-nodo08.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo09",
+      "nombre": "Región Corrientes",
+      "url": "https://geo-nodo09.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo10",
+      "nombre": "Región Santa Fe",
+      "url": "https://geo-nodo10.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo11",
+      "nombre": "Región Catamarca – La Rioja",
+      "url": "https://geo-nodo11.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo12",
+      "nombre": "Región Mendoza – San Juan",
+      "url": "https://geo-nodo12.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo13",
+      "nombre": "Región Misiones",
+      "url": "https://geo-nodo13.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo14",
+      "nombre": "Región Chaco – Formosa",
+      "url": "https://geo-nodo14.inta.gob.ar/geoserver/wms"
+    },
+    {
+      "id": "nodo15",
+      "nombre": "Región La Pampa – San Luis",
+      "url": "https://geo-nodo15.inta.gob.ar/geoserver/wms"
+    }
+  ]
+}
