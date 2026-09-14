@@ -22,9 +22,9 @@ def build_geonode_urls(wms_url, layer_name):
     else:
         workspace, name = "", layer_name
 
-    # URLs estándar de GeoNode
     dataset_url = f"{base}/datasets/{layer_name}"
     catalogue_url = f"{base}/catalogue/#/dataset/{layer_name}"
+    embed_url = f"{base}/datasets/{layer_name}/embed"
     metadata_url = f"{base}/datasets/{layer_name}/metadata_detail"
 
     # URL directa de preview en WMS
@@ -37,6 +37,7 @@ def build_geonode_urls(wms_url, layer_name):
         "base_url": base,
         "dataset_url": dataset_url,
         "catalogue_url": catalogue_url,
+        "embed_url": embed_url,
         "metadata_url": metadata_url,
         "wms_preview_url": wms_preview_url,
     }
