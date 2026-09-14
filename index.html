@@ -356,9 +356,10 @@
       <!-- Modal Body (iFrame + Loader) -->
       <div class="relative flex-1 bg-slate-100 dark:bg-slate-900">
         <!-- Spinner de carga -->
-        <div id="preview-loader" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-100 dark:bg-slate-900 z-10">
+        <div id="preview-loader" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-100 dark:bg-slate-900 z-10 p-6 text-center">
           <div class="w-10 h-10 border-4 border-sky-200 border-t-[#0B7BAF] rounded-full animate-spin"></div>
           <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Cargando visor interactivo de GeoNode...</p>
+          <p class="text-[11px] text-slate-400 dark:text-slate-500 max-w-sm">Si el nodo demora o tiene restricciones de conexión, podés abrirlo directamente con el botón <b>Pantalla completa</b> arriba a la derecha.</p>
         </div>
 
         <iframe 
@@ -699,6 +700,17 @@
       renderResults(filtered);
     }
 
+    // Obtener URL de embed limpia para el visor interactivo (sin #/ ni metadata_detail)
+    function getLayerEmbedUrl(layer) {
+      if (layer.metadata_url && layer.metadata_url.includes("/metadata_detail")) {
+        return layer.metadata_url.replace(/\/metadata_detail\/?$/, "/embed");
+      }
+      let url = layer.embed_url || layer.wms_preview_url || layer.dataset_url || "";
+      url = url.replace(/\/embed#\/?$/, "/embed");
+      url = url.replace(/#\/?$/, "");
+      return url;
+    }
+
     // Renderizar resultados paginados
     function renderResults(layers) {
       const container = document.getElementById("results-container");
@@ -740,6 +752,7 @@
         const badgeText = isVector ? "VECTOR" : "RASTER";
         const title = layer.title || layer.layer_name;
         const abstract = layer.abstract || "<i>Sin descripción detallada en el servicio WMS.</i>";
+        const embedUrl = getLayerEmbedUrl(layer);
 
         const keywordsHtml = (layer.keywords && layer.keywords.length > 0)
           ? `<div class="flex flex-wrap gap-1.5 mt-3">
@@ -805,7 +818,7 @@
 
               <button 
                 type="button"
-                onclick="openPreviewModal('${escapeHtml(layer.embed_url || layer.wms_preview_url || layer.dataset_url)}', '${escapeHtml(title)}', '${escapeHtml(layer.layer_name)}', '${escapeHtml(layer.node)}', '${badgeText}', '${escapeHtml(layer.dataset_url)}')"
+                onclick="openPreviewModal('${escapeHtml(embedUrl)}', '${escapeHtml(title)}', '${escapeHtml(layer.layer_name)}', '${escapeHtml(layer.node)}', '${badgeText}', '${escapeHtml(layer.dataset_url)}')"
                 class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-[#0B7BAF] dark:text-sky-300 rounded-xl font-semibold border border-sky-200 dark:border-sky-800/80 transition shadow-sm"
                 title="Abrir visor interactivo en ventana emergente"
               >
@@ -877,6 +890,8 @@
       document.getElementById("gis-modal").classList.remove("hidden");
     }
 
+    let previewTimer = null;
+
     // Modal Vista Previa Interactivo (GeoNode Embed)
     function openPreviewModal(embedUrl, title, layerName, nodeName, badgeText, datasetUrl) {
       const modal = document.getElementById("preview-modal");
@@ -889,21 +904,35 @@
       const extBtn = document.getElementById("preview-open-external");
       const dsLink = document.getElementById("preview-dataset-link");
 
+      // Garantizar que la URL de destino sea /embed limpia (sin #/ ni metadata_detail)
+      let cleanEmbed = embedUrl || "";
+      if (cleanEmbed.includes("/metadata_detail")) {
+        cleanEmbed = cleanEmbed.replace(/\/metadata_detail\/?$/, "/embed");
+      } else {
+        cleanEmbed = cleanEmbed.replace(/\/embed#\/?$/, "/embed").replace(/#\/?$/, "");
+      }
+
       titleEl.textContent = title;
       subtitleEl.textContent = layerName;
       nodeEl.textContent = nodeName;
       badgeEl.textContent = badgeText;
       badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${badgeText === 'VECTOR' ? 'badge-vector' : 'badge-raster'}`;
 
-      extBtn.href = embedUrl;
-      dsLink.href = datasetUrl || embedUrl;
+      extBtn.href = cleanEmbed;
+      dsLink.href = datasetUrl || cleanEmbed;
 
       loader.classList.remove("hidden");
+      if (previewTimer) clearTimeout(previewTimer);
+      previewTimer = setTimeout(() => {
+        loader.classList.add("hidden");
+      }, 7000);
+
       iframe.onload = () => {
+        if (previewTimer) clearTimeout(previewTimer);
         loader.classList.add("hidden");
       };
 
-      iframe.src = embedUrl;
+      iframe.src = cleanEmbed;
       modal.classList.remove("hidden");
       feather.replace();
     }
@@ -911,7 +940,8 @@
     function closePreviewModal() {
       const modal = document.getElementById("preview-modal");
       const iframe = document.getElementById("preview-iframe");
-      iframe.src = "";
+      if (previewTimer) clearTimeout(previewTimer);
+      iframe.src = "about:blank";
       modal.classList.add("hidden");
     }
 
