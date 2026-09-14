@@ -6,7 +6,34 @@ from datetime import datetime
 
 from wms.capabilities import get_layers_from_wms
 from wms.loader import load_wms_sources
-from geonode.metadata import build_geonode_urls
+
+def build_geonode_urls(wms_url, layer_name):
+    """
+    Construye las URLs estándar para GeoNode (dataset público, metadatos y visor WMS).
+    No realiza peticiones de red, por lo que es instantáneo y seguro.
+    """
+    base = wms_url.split("/geoserver")[0].rstrip("/")
+    parts = layer_name.split(":")
+    if len(parts) == 2:
+        workspace, name = parts
+    else:
+        workspace, name = "", layer_name
+
+    dataset_url = f"{base}/datasets/{layer_name}"
+    catalogue_url = f"{base}/catalogue/#/dataset/{layer_name}"
+    metadata_url = f"{base}/datasets/{layer_name}/metadata_detail"
+    wms_preview_url = (
+        f"{wms_url}?service=WMS&version=1.1.0&request=GetMap"
+        f"&layers={layer_name}&styles=&width=768&height=400&srs=EPSG:4326&format=image%2Fpng"
+    )
+
+    return {
+        "base_url": base,
+        "dataset_url": dataset_url,
+        "catalogue_url": catalogue_url,
+        "metadata_url": metadata_url,
+        "wms_preview_url": wms_preview_url,
+    }
 
 logger = logging.getLogger(__name__)
 
