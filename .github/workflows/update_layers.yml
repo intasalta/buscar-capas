@@ -39,6 +39,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No hay cambios en las capas."
           else
-            git commit -m "chore: actualización automática del catálogo de capas WMS [skip ci]"
+            git commit -m "chore: actualización automática del catálogo de capas WMS"
             git push
           fi
