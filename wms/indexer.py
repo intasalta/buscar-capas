@@ -20,6 +20,18 @@ DEFAULT_REQUEST_HEADERS = {
     "Accept": "application/json,text/html,*/*",
 }
 
+def safe_request_get(url, headers=None, timeout=15, retries=2, delay=1.0):
+    req_headers = headers or DEFAULT_REQUEST_HEADERS
+    last_err = None
+    for attempt in range(retries):
+        try:
+            return requests.get(url, headers=req_headers, timeout=timeout)
+        except Exception as e:
+            last_err = e
+            if attempt < retries - 1:
+                time.sleep(delay)
+    raise last_err
+
 def normalize_text(text):
     if not text:
         return ""
@@ -27,7 +39,7 @@ def normalize_text(text):
     text = unicodedata.normalize("NFD", text)
     return "".join(c for c in text if unicodedata.category(c) != "Mn")
 
-def fetch_geonode_resources(node_url, timeout=12):
+def fetch_geonode_resources(node_url, timeout=15):
     """
     Consulta la API v2 de GeoNode para obtener datasets del nodo:
     - subtype (raster vs vector 100% exacto)
@@ -43,7 +55,7 @@ def fetch_geonode_resources(node_url, timeout=12):
     try:
         while True:
             api_url = f"{base}/api/v2/resources?filter{{resource_type}}=dataset&page_size={page_size}&page={page}"
-            r = requests.get(api_url, headers=DEFAULT_REQUEST_HEADERS, timeout=timeout)
+            r = safe_request_get(api_url, timeout=timeout)
             if r.status_code != 200:
                 break
             data = r.json()
@@ -167,21 +179,194 @@ def index_all_wms(
 
     logger.info(f"Iniciando indexación de {total_nodes} nodos WMS...")
 
+def fetch_geonode_apps_and_maps(node_url, node_name, node_id, timeout=15):
+    """
+    Consulta la API v2 de GeoNode para obtener mapas interactivos, dashboards y geohistorias del nodo.
+    """
+    base = node_url.split("/geoserver")[0].rstrip("/")
+    items = []
+    seen_keys = set()
+
+    # 1. Mapas (/api/v2/maps)
+    try:
+        page = 1
+        page_size = 50
+        while page <= 10:
+            url = f"{base}/api/v2/maps?page_size={page_size}&page={page}"
+            r = safe_request_get(url, timeout=timeout)
+            if r.status_code != 200:
+                break
+            data = r.json()
+            maps = data.get("maps", [])
+            if not maps:
+                break
+            for m in maps:
+                pk = str(m.get("pk") or "")
+                key = f"map_{pk}"
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+
+                title = m.get("title") or m.get("name") or f"Mapa {pk}"
+                name = m.get("name") or f"map_{pk}"
+                abstract = m.get("raw_abstract") or m.get("abstract") or ""
+                keywords = [k.get("name") if isinstance(k, dict) else str(k) for k in m.get("keywords", []) if k]
+                detail_url = m.get("detail_url") or f"{base}/catalogue/#/map/{pk}"
+                embed_url = m.get("embed_url") or f"{base}/maps/{pk}/embed"
+                thumbnail_url = m.get("thumbnail_url") or ""
+
+                if detail_url.startswith("/"):
+                    detail_url = f"{base}{detail_url}"
+                if embed_url.startswith("/"):
+                    embed_url = f"{base}{embed_url}"
+                if thumbnail_url and thumbnail_url.startswith("/"):
+                    thumbnail_url = f"{base}{thumbnail_url}"
+
+                items.append({
+                    "layer_name": name,
+                    "title": title,
+                    "abstract": abstract,
+                    "keywords": keywords,
+                    "bbox": None,
+                    "wms_url": node_url,
+                    "node": node_name,
+                    "node_id": node_id,
+                    "layer_type": "MAPA",
+                    "resource_pk": pk,
+                    "dataset_url": detail_url,
+                    "catalogue_url": detail_url,
+                    "embed_url": embed_url,
+                    "metadata_url": f"{base}/maps/{pk}/metadata_detail",
+                    "thumbnail_url": thumbnail_url,
+                    "wms_preview_url": embed_url,
+                })
+
+            total = data.get("total", 0)
+            if page * page_size >= total:
+                break
+            page += 1
+    except Exception as e:
+        logger.warning(f"Error consultando mapas en {base}: {e}")
+
+    # 2. GeoApps (/api/v2/geoapps - dashboards y geohistorias)
+    try:
+        page = 1
+        page_size = 50
+        while page <= 10:
+            url = f"{base}/api/v2/geoapps?page_size={page_size}&page={page}"
+            r = safe_request_get(url, timeout=timeout)
+            if r.status_code != 200:
+                break
+            data = r.json()
+            apps = data.get("geoapps", [])
+            if not apps:
+                break
+            for a in apps:
+                pk = str(a.get("pk") or "")
+                res_type = (a.get("resource_type") or "").lower()
+                title = a.get("title") or a.get("name") or f"App {pk}"
+                name = a.get("name") or f"app_{pk}"
+                abstract = a.get("raw_abstract") or a.get("abstract") or ""
+                keywords = [k.get("name") if isinstance(k, dict) else str(k) for k in a.get("keywords", []) if k]
+
+                if res_type == "dashboard":
+                    layer_type = "DASHBOARD"
+                    detail_url = a.get("detail_url") or f"{base}/catalogue/#/dashboard/{pk}"
+                elif res_type == "geostory":
+                    layer_type = "GEOHISTORIA"
+                    detail_url = a.get("detail_url") or f"{base}/catalogue/#/geostory/{pk}"
+                else:
+                    if "dashboard" in title.lower():
+                        layer_type = "DASHBOARD"
+                        detail_url = a.get("detail_url") or f"{base}/catalogue/#/dashboard/{pk}"
+                    else:
+                        layer_type = "GEOHISTORIA"
+                        detail_url = a.get("detail_url") or f"{base}/catalogue/#/geostory/{pk}"
+
+                key = f"{layer_type}_{pk}"
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+
+                embed_url = a.get("embed_url") or f"{base}/apps/{pk}/embed"
+                thumbnail_url = a.get("thumbnail_url") or ""
+
+                if detail_url.startswith("/"):
+                    detail_url = f"{base}{detail_url}"
+                if embed_url.startswith("/"):
+                    embed_url = f"{base}{embed_url}"
+                if thumbnail_url and thumbnail_url.startswith("/"):
+                    thumbnail_url = f"{base}{thumbnail_url}"
+
+                items.append({
+                    "layer_name": name,
+                    "title": title,
+                    "abstract": abstract,
+                    "keywords": keywords,
+                    "bbox": None,
+                    "wms_url": node_url,
+                    "node": node_name,
+                    "node_id": node_id,
+                    "layer_type": layer_type,
+                    "resource_pk": pk,
+                    "dataset_url": detail_url,
+                    "catalogue_url": detail_url,
+                    "embed_url": embed_url,
+                    "metadata_url": detail_url,
+                    "thumbnail_url": thumbnail_url,
+                    "wms_preview_url": embed_url,
+                })
+
+            total = data.get("total", 0)
+            if page * page_size >= total:
+                break
+            page += 1
+    except Exception as e:
+        logger.warning(f"Error consultando geoapps en {base}: {e}")
+
+    return items
+
+
+def index_all_wms(
+    sources_path="data.json",
+    output_path=CACHE_FILE_DEFAULT,
+    delay_between_requests=1.0,
+    progress_callback=None
+):
+    """
+    Descarga e indexa las capas WMS (vector/ráster), mapas, dashboards y geohistorias
+    de todos los nodos configurados.
+    
+    - Usa pausas (delay_between_requests) para no activar los firewalls / WAF.
+    - Soporta progress_callback(index, total, node_name, layers_count, error).
+    - Guarda los resultados estructurados en un archivo JSON local.
+    """
+    sources = load_wms_sources(sources_path)
+    total_nodes = len(sources)
+    all_layers = []
+    nodes_summary = []
+
+    logger.info(f"Iniciando indexación de {total_nodes} nodos IDGEO...")
+
     for i, source in enumerate(sources, 1):
         node_name = source["nombre"]
         node_url = source["url"]
         node_id = source.get("id", f"node_{i}")
         error_msg = None
-        layers_found = []
+        node_resources = []
 
         try:
             logger.info(f"[{i}/{total_nodes}] Consultando nodo: {node_name} ({node_url})")
             
-            # Consultar datasets de GeoNode API (si está disponible)
+            # 1. Consultar datasets de GeoNode API (para clasificación exacta vector/raster)
             resources_map = fetch_geonode_resources(node_url, timeout=12)
             
-            # Consultar capas WMS
-            layers_found = get_layers_from_wms(node_url, timeout=15, raise_on_error=True)
+            # 2. Consultar capas WMS del GeoServer
+            layers_found = []
+            try:
+                layers_found = get_layers_from_wms(node_url, timeout=15, raise_on_error=True)
+            except Exception as wms_err:
+                logger.warning(f"Aviso al consultar WMS de {node_name}: {wms_err}")
 
             for layer in layers_found:
                 layer_name = layer["name"]
@@ -209,7 +394,7 @@ def index_all_wms(
 
                 wms_preview_url = embed_url
 
-                all_layers.append({
+                node_resources.append({
                     "layer_name": layer_name,
                     "title": title,
                     "abstract": abstract,
@@ -227,11 +412,19 @@ def index_all_wms(
                     "wms_preview_url": wms_preview_url,
                 })
 
+            # 3. Consultar Mapas, Dashboards y GeoHistorias desde GeoNode API
+            apps_and_maps = fetch_geonode_apps_and_maps(node_url, node_name, node_id, timeout=10)
+            node_resources.extend(apps_and_maps)
+
+            all_layers.extend(node_resources)
+
             nodes_summary.append({
                 "id": node_id,
                 "nombre": node_name,
                 "status": "ok",
-                "layers_count": len(layers_found)
+                "layers_count": len(layers_found),
+                "apps_maps_count": len(apps_and_maps),
+                "total_node_resources": len(node_resources)
             })
 
         except Exception as e:
@@ -242,19 +435,32 @@ def index_all_wms(
                 "nombre": node_name,
                 "status": "error",
                 "error": error_msg,
-                "layers_count": 0
+                "layers_count": 0,
+                "apps_maps_count": 0,
+                "total_node_resources": 0
             })
 
         if progress_callback:
-            progress_callback(i, total_nodes, node_name, len(layers_found), error_msg)
+            progress_callback(i, total_nodes, node_name, len(node_resources), error_msg)
 
         # Pausa respetuosa para evitar detección de DoS/Scraping por WAF
         if i < total_nodes and delay_between_requests > 0:
             time.sleep(delay_between_requests)
 
+    # Conteo por tipo de recurso
+    counts_by_type = {
+        "VECTOR": sum(1 for l in all_layers if (l.get("layer_type") or "").upper() == "VECTOR"),
+        "RASTER": sum(1 for l in all_layers if (l.get("layer_type") or "").upper() == "RASTER"),
+        "MAPA": sum(1 for l in all_layers if (l.get("layer_type") or "").upper() == "MAPA"),
+        "DASHBOARD": sum(1 for l in all_layers if (l.get("layer_type") or "").upper() == "DASHBOARD"),
+        "GEOHISTORIA": sum(1 for l in all_layers if (l.get("layer_type") or "").upper() == "GEOHISTORIA"),
+    }
+
     cache_data = {
         "updated_at": datetime.now().isoformat(),
         "total_layers": len(all_layers),
+        "total_resources": len(all_layers),
+        "counts_by_type": counts_by_type,
         "total_nodes": total_nodes,
         "nodes_summary": nodes_summary,
         "layers": all_layers
@@ -264,7 +470,7 @@ def index_all_wms(
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(cache_data, f, ensure_ascii=False, indent=2)
 
-    logger.info(f"Indexación completada: {len(all_layers)} capas guardadas en {output_path}")
+    logger.info(f"Indexación completada: {len(all_layers)} recursos guardados en {output_path} (Counts: {counts_by_type})")
     return cache_data
 
 

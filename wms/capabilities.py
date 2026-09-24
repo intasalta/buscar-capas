@@ -1,4 +1,5 @@
 import logging
+import time
 from owslib.wms import WebMapService
 
 logger = logging.getLogger(__name__)
@@ -10,18 +11,19 @@ DEFAULT_HEADERS = {
     "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
 }
 
-def get_layers_from_wms(url, timeout=15, headers=None, raise_on_error=False):
+def get_layers_from_wms(url, timeout=18, headers=None, raise_on_error=False, retries=2):
     """
     Obtiene el listado de capas de un servicio WMS de forma segura.
-    Usa headers de navegador y timeout configurable para evitar baneos de IP.
+    Usa headers de navegador y timeout configurable con reintento ante micro-cortes.
     """
     req_headers = headers or DEFAULT_HEADERS
-    try:
-        wms = WebMapService(url, timeout=timeout, headers=req_headers)
-        layers = []
+    for attempt in range(retries):
+        try:
+            wms = WebMapService(url, timeout=timeout, headers=req_headers)
+            layers = []
 
-        for layer_name in list(wms.contents):
-            layer = wms[layer_name]
+            for layer_name in list(wms.contents):
+                layer = wms[layer_name]
             
             # Extraer bounding box si está disponible
             bbox = None
@@ -37,10 +39,13 @@ def get_layers_from_wms(url, timeout=15, headers=None, raise_on_error=False):
                 "keywords": getattr(layer, "keywords", []) or [],
                 "bbox": bbox,
             })
-        return layers
-
-    except Exception as e:
-        logger.warning(f"Error consultando WMS en {url}: {e}")
-        if raise_on_error:
-            raise
-        return []
+            return layers
+        except Exception as e:
+            if attempt < retries - 1:
+                time.sleep(1.0)
+                continue
+            logger.warning(f"Error consultando WMS en {url}: {e}")
+            if raise_on_error:
+                raise
+            return []
+    return []
