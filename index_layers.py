@@ -22,16 +22,16 @@ logging.basicConfig(
     datefmt="%H:%M:%S"
 )
 
-def progress_display(current, total, node_name, layers_count, error):
-    status = f"✅ {layers_count} capas" if not error else f"❌ Error: {error}"
+def progress_display(current, total, node_name, count, error):
+    status = f"✅ {count} recursos (capas, mapas, dashboards, geohistorias)" if not error else f"❌ Error: {error}"
     print(f"[{current}/{total}] {node_name} -> {status}")
 
 if __name__ == "__main__":
     print("=" * 65)
-    print("🌍 INDEXADOR DE CAPAS WMS – IDGEO INTA")
+    print("🌍 INDEXADOR INTEGRAL DE RECURSOS GEOESPACIALES – IDGEO INTA")
     print("=" * 65)
     print("Iniciando consulta respetuosa a los nodos (1 segundo de pausa entre nodos)...")
-    print("Esto previene cualquier bloqueo de IP por parte del firewall/WAF de INTA.\n")
+    print("Indexando capas WMS, mapas interactivos, dashboards y geohistorias.\n")
 
     # Rutas relativas al script
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -46,9 +46,16 @@ if __name__ == "__main__":
         progress_callback=progress_display
     )
     elapsed = datetime.now() - start_time
+    counts = result.get("counts_by_type", {})
 
     print("\n" + "=" * 65)
     print(f"🎉 ¡Proceso finalizado en {elapsed.seconds} segundos!")
-    print(f"📊 Total de capas indexadas: {result['total_layers']}")
+    print(f"📊 Total de recursos indexados: {result.get('total_resources', result.get('total_layers'))}")
+    print(f"   • Vector:        {counts.get('VECTOR', 0)}")
+    print(f"   • Raster:        {counts.get('RASTER', 0)}")
+    print(f"   • Mapas:         {counts.get('MAPA', 0)}")
+    print(f"   • Dashboards:    {counts.get('DASHBOARD', 0)}")
+    print(f"   • GeoHistorias:  {counts.get('GEOHISTORIA', 0)}")
     print(f"💾 Archivo generado: {output_file}")
     print("=" * 65)
+
