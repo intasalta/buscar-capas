@@ -73,6 +73,16 @@
       color: #fb7185;
       border-color: rgba(244, 63, 94, 0.45);
     }
+    .badge-documento {
+      background-color: rgba(168, 85, 247, 0.12);
+      color: #9333ea;
+      border: 1px solid rgba(168, 85, 247, 0.28);
+    }
+    .dark .badge-documento {
+      background-color: rgba(168, 85, 247, 0.2);
+      color: #c084fc;
+      border-color: rgba(168, 85, 247, 0.45);
+    }
     /* Fix compatibilidad Leaflet con Tailwind CSS */
     .leaflet-container img {
       max-width: none !important;
@@ -173,7 +183,7 @@
         <input
           type="text"
           id="search-input"
-          placeholder="Buscar capas, mapas, dashboards o geohistorias por título, nombre técnico o tema (ej: suelos, desmonte, clima, cuenca, agua)..."
+          placeholder="Buscar capas, mapas, dashboards, geohistorias o documentos por título, tema o formato (ej: suelos, clima, agua, pdf, rar)..."
           class="w-full pl-11 pr-10 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0B7BAF] focus:bg-white dark:focus:bg-slate-900 text-sm sm:text-base transition"
         />
         <button
@@ -198,6 +208,7 @@
             <button class="filter-type-btn px-3 py-1 rounded-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all" data-type="MAPA">Mapas <span id="count-type-mapa" class="opacity-75 text-[11px]"></span></button>
             <button class="filter-type-btn px-3 py-1 rounded-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all" data-type="DASHBOARD">Dashboards <span id="count-type-dashboard" class="opacity-75 text-[11px]"></span></button>
             <button class="filter-type-btn px-3 py-1 rounded-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all" data-type="GEOHISTORIA">GeoHistorias <span id="count-type-geohistoria" class="opacity-75 text-[11px]"></span></button>
+            <button class="filter-type-btn px-3 py-1 rounded-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all" data-type="DOCUMENTO">Documentos <span id="count-type-documento" class="opacity-75 text-[11px]"></span></button>
           </div>
         </div>
 
@@ -531,6 +542,7 @@
           mapa: allLayers.filter(l => (l.layer_type || "").toUpperCase() === "MAPA").length,
           dashboard: allLayers.filter(l => (l.layer_type || "").toUpperCase() === "DASHBOARD").length,
           geohistoria: allLayers.filter(l => (l.layer_type || "").toUpperCase() === "GEOHISTORIA").length,
+          documento: allLayers.filter(l => (l.layer_type || "").toUpperCase() === "DOCUMENTO").length,
         };
 
         const setPill = (id, val) => {
@@ -543,6 +555,7 @@
         setPill("count-type-mapa", counts.mapa);
         setPill("count-type-dashboard", counts.dashboard);
         setPill("count-type-geohistoria", counts.geohistoria);
+        setPill("count-type-documento", counts.documento);
 
         renderNodeFilters();
         applyFiltersAndRender();
@@ -741,11 +754,13 @@
             "RASTER": "raster matricial imagen satelital",
             "MAPA": "mapa mapas map visor",
             "DASHBOARD": "dashboard dashboards tablero tableros app aplicacion",
-            "GEOHISTORIA": "geohistoria geohistorias historia historias story geostory relato"
+            "GEOHISTORIA": "geohistoria geohistorias historia historias story geostory relato",
+            "DOCUMENTO": "documento documentos pdf archivo informe doc docx xls xlsx rar zip descarga"
           };
           const extraTerms = typeSynonyms[(layer.layer_type || "").toUpperCase()] || "";
+          const kwString = (layer.keywords || []).map(k => (typeof k === 'object' && k !== null) ? (k.name || k.slug || '') : String(k)).join(" ");
           const haystack = normalizeText(
-            `${layer.title || ""} ${layer.layer_name || ""} ${layer.abstract || ""} ${(layer.keywords || []).join(" ")} ${layer.node || ""} ${layer.layer_type || ""} ${extraTerms}`
+            `${layer.title || ""} ${layer.layer_name || ""} ${layer.abstract || ""} ${kwString} ${layer.node || ""} ${layer.layer_type || ""} ${extraTerms}`
           );
           return tokens.every(token => haystack.includes(token));
         }
@@ -803,12 +818,12 @@
 
       currentPageItems = pageItems;
 
-      // Renderizar Cards para todos los tipos de recursos
+      // Renderizar Cards con estilo idéntico al original de HTMLWMS2
       container.innerHTML = pageItems.map((layer, index) => {
         const rawType = (layer.layer_type || "VECTOR").toUpperCase();
         let badgeClass = "badge-vector";
         let badgeText = "VECTOR";
-        let isWmsLayer = true;
+        let isWms = true;
 
         if (rawType === "RASTER") {
           badgeClass = "badge-raster";
@@ -816,163 +831,41 @@
         } else if (rawType === "MAPA") {
           badgeClass = "badge-mapa";
           badgeText = "MAPA";
-          isWmsLayer = false;
+          isWms = false;
         } else if (rawType === "DASHBOARD") {
           badgeClass = "badge-dashboard";
           badgeText = "DASHBOARD";
-          isWmsLayer = false;
+          isWms = false;
         } else if (rawType === "GEOHISTORIA") {
           badgeClass = "badge-geohistoria";
           badgeText = "GEOHISTORIA";
-          isWmsLayer = false;
+          isWms = false;
+        } else if (rawType === "DOCUMENTO") {
+          badgeClass = "badge-documento";
+          badgeText = "DOCUMENTO";
+          isWms = false;
         }
 
         const title = layer.title || layer.layer_name;
-        const abstract = layer.abstract || "<i>Sin descripción detallada.</i>";
+        const abstract = layer.abstract || "<i>Sin descripción detallada en el servicio WMS.</i>";
 
         const keywordsHtml = (layer.keywords && layer.keywords.length > 0)
           ? `<div class="flex flex-wrap gap-1.5 mt-3">
-              ${layer.keywords.slice(0, 7).map(k => `<span class="bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-lg text-[11px] font-medium border border-slate-200 dark:border-slate-600">${escapeHtml(k)}</span>`).join("")}
+              ${layer.keywords.slice(0, 7).map(k => {
+                const kwText = (typeof k === 'object' && k !== null) ? (k.name || k.slug || '') : String(k);
+                return kwText ? `<span class="bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-lg text-[11px] font-medium border border-slate-200 dark:border-slate-600">${escapeHtml(kwText)}</span>` : '';
+              }).join("")}
              </div>`
           : "";
 
-        const thumbnailHtml = layer.thumbnail_url ? `
-          <div class="thumb-container w-full sm:w-44 h-28 sm:h-32 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shrink-0">
-            <img 
-              src="${escapeHtml(layer.thumbnail_url)}" 
-              alt="${escapeHtml(title)}" 
-              loading="lazy" 
-              class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-              onerror="this.closest('.thumb-container').remove()"
-            />
-          </div>
-        ` : "";
-
-        // Botones de acción específicos según el tipo de recurso
-        let actionButtonsHtml = "";
-        let headerRightBtn = "";
-
-        if (isWmsLayer) {
-          headerRightBtn = `
-            <button 
-              onclick="openGisModal('${escapeHtml(layer.wms_url)}', '${escapeHtml(layer.layer_name)}')"
-              class="inline-flex items-center gap-1.5 text-xs text-[#0B7BAF] dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-700/60 px-3 py-1.5 rounded-xl border border-sky-500/20 font-semibold transition-all"
-            >
-              <i data-feather="share-2" class="w-3.5 h-3.5"></i>
-              <span>QGIS / ArcGIS</span>
-            </button>
-          `;
-
-          actionButtonsHtml = `
-            ${layer.dataset_url ? `
-              <a href="${escapeHtml(layer.dataset_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0B7BAF] hover:bg-[#08618B] text-white rounded-xl font-semibold transition shadow-sm" title="Abrir ficha en el catálogo de GeoNode">
-                <i data-feather="external-link" class="w-4 h-4"></i>
-                <span>Ver en GeoNode</span>
-              </a>
-            ` : ""}
-
-            ${layer.metadata_url ? `
-              <a href="${escapeHtml(layer.metadata_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-semibold border border-slate-200 dark:border-slate-600 transition" title="Ver metadatos completos">
-                <i data-feather="file-text" class="w-4 h-4"></i>
-                <span>Ver Metadatos</span>
-              </a>
-            ` : ""}
-
-            <button 
-              type="button"
-              onclick="openPreviewModalByIndex(${index})"
-              class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-[#0B7BAF] dark:text-sky-300 rounded-xl font-semibold border border-sky-200 dark:border-sky-800/80 transition shadow-sm"
-              title="Abrir visor interactivo en ventana emergente"
-            >
-              <i data-feather="eye" class="w-4 h-4"></i>
-              <span>Vista Previa</span>
-            </button>
-          `;
-        } else if (rawType === "MAPA") {
-          headerRightBtn = `
-            <a 
-              href="${escapeHtml(layer.embed_url || layer.dataset_url)}" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              class="inline-flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-slate-700/60 px-3 py-1.5 rounded-xl border border-amber-500/20 font-semibold transition-all"
-            >
-              <i data-feather="maximize-2" class="w-3.5 h-3.5"></i>
-              <span>Visor Completo</span>
-            </a>
-          `;
-
-          actionButtonsHtml = `
-            <a href="${escapeHtml(layer.dataset_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-semibold transition shadow-sm" title="Abrir mapa en el catálogo">
-              <i data-feather="map" class="w-4 h-4"></i>
-              <span>Ver Mapa en GeoNode</span>
-            </a>
-
-            ${layer.embed_url ? `
-              <a href="${escapeHtml(layer.embed_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-semibold border border-slate-200 dark:border-slate-600 transition" title="Abrir visor interactivo a pantalla completa">
-                <i data-feather="external-link" class="w-4 h-4"></i>
-                <span>Abrir Visor</span>
-              </a>
-            ` : ""}
-          `;
-        } else if (rawType === "DASHBOARD") {
-          headerRightBtn = `
-            <a 
-              href="${escapeHtml(layer.embed_url || layer.dataset_url)}" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              class="inline-flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700/60 px-3 py-1.5 rounded-xl border border-indigo-500/20 font-semibold transition-all"
-            >
-              <i data-feather="external-link" class="w-3.5 h-3.5"></i>
-              <span>Abrir App</span>
-            </a>
-          `;
-
-          actionButtonsHtml = `
-            <a href="${escapeHtml(layer.dataset_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition shadow-sm" title="Abrir Dashboard en GeoNode">
-              <i data-feather="activity" class="w-4 h-4"></i>
-              <span>Abrir Dashboard</span>
-            </a>
-
-            ${layer.embed_url ? `
-              <a href="${escapeHtml(layer.embed_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-semibold border border-slate-200 dark:border-slate-600 transition" title="Abrir visor del dashboard">
-                <i data-feather="maximize-2" class="w-4 h-4"></i>
-                <span>Visor Completo</span>
-              </a>
-            ` : ""}
-          `;
-        } else if (rawType === "GEOHISTORIA") {
-          headerRightBtn = `
-            <a 
-              href="${escapeHtml(layer.embed_url || layer.dataset_url)}" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              class="inline-flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-slate-700/60 px-3 py-1.5 rounded-xl border border-rose-500/20 font-semibold transition-all"
-            >
-              <i data-feather="book-open" class="w-3.5 h-3.5"></i>
-              <span>Leer Historia</span>
-            </a>
-          `;
-
-          actionButtonsHtml = `
-            <a href="${escapeHtml(layer.dataset_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold transition shadow-sm" title="Abrir GeoHistoria en GeoNode">
-              <i data-feather="book-open" class="w-4 h-4"></i>
-              <span>Ver GeoHistoria</span>
-            </a>
-
-            ${layer.embed_url ? `
-              <a href="${escapeHtml(layer.embed_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-semibold border border-slate-200 dark:border-slate-600 transition" title="Abrir lectura interactiva a pantalla completa">
-                <i data-feather="external-link" class="w-4 h-4"></i>
-                <span>Lectura Interactiva</span>
-              </a>
-            ` : ""}
-          `;
-        }
+        const geonodeUrl = layer.dataset_url || layer.catalogue_url;
+        const metadataUrl = layer.metadata_url || geonodeUrl;
 
         return `
           <article class="bg-white dark:bg-slate-800 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-all">
             
             <!-- Encabezado de la Tarjeta -->
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
               <div class="flex items-center gap-2">
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeClass}">
                   ${badgeText}
@@ -982,34 +875,82 @@
                 </span>
               </div>
 
-              ${headerRightBtn}
+              ${isWms ? `
+              <!-- Botón QGIS / ArcGIS -->
+              <button 
+                onclick="openGisModal('${escapeHtml(layer.wms_url)}', '${escapeHtml(layer.layer_name)}')"
+                class="inline-flex items-center gap-1.5 text-xs text-[#0B7BAF] dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-700/60 px-3 py-1.5 rounded-xl border border-sky-500/20 font-semibold transition-all"
+              >
+                <i data-feather="share-2" class="w-3.5 h-3.5"></i>
+                <span>QGIS / ArcGIS</span>
+              </button>
+              ` : (rawType === "DOCUMENTO" ? `
+              <a 
+                href="${escapeHtml(layer.download_url || layer.embed_url || geonodeUrl)}" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-1.5 text-xs text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 px-3 py-1.5 rounded-xl border border-purple-500/20 font-semibold transition-all"
+                title="Descargar archivo"
+              >
+                <i data-feather="download" class="w-3.5 h-3.5"></i>
+                <span>Descargar (${escapeHtml((layer.extension || "doc").toUpperCase())})</span>
+              </a>
+              ` : `
+              <a 
+                href="${escapeHtml(layer.embed_url || geonodeUrl)}" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-1.5 text-xs text-[#0B7BAF] dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-700/60 px-3 py-1.5 rounded-xl border border-sky-500/20 font-semibold transition-all"
+              >
+                <i data-feather="external-link" class="w-3.5 h-3.5"></i>
+                <span>Abrir Recurso</span>
+              </a>
+              `)}
             </div>
 
-            <!-- Cuerpo con Miniatura opcional -->
-            <div class="flex flex-col sm:flex-row gap-4 items-start">
-              ${thumbnailHtml}
-              <div class="flex-1 min-w-0 w-full">
-                <!-- Título y Nombre Técnico -->
-                <h3 class="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white leading-snug">
-                  ${escapeHtml(title)}
-                </h3>
+            <!-- Título y Nombre Técnico -->
+            <h3 class="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white leading-snug">
+              ${escapeHtml(title)}
+            </h3>
 
-                <p class="text-xs font-mono text-slate-500 dark:text-slate-400 mt-1 select-all">
-                  ${escapeHtml(layer.layer_name)}
-                </p>
+            <p class="text-xs font-mono text-slate-500 dark:text-slate-400 mt-1 select-all">
+              ${escapeHtml(layer.layer_name)}
+            </p>
 
-                <!-- Abstract -->
-                <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-2.5 leading-relaxed line-clamp-3">
-                  ${abstract}
-                </p>
+            <!-- Abstract -->
+            <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-3 leading-relaxed line-clamp-3">
+              ${abstract}
+            </p>
 
-                ${keywordsHtml}
-              </div>
-            </div>
+            ${keywordsHtml}
 
             <!-- Botones de Acción -->
             <div class="flex flex-wrap items-center gap-2 mt-5 pt-4 border-t border-slate-100 dark:border-slate-700/60 text-xs sm:text-sm">
-              ${actionButtonsHtml}
+              ${geonodeUrl ? `
+                <a href="${escapeHtml(geonodeUrl)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0B7BAF] hover:bg-[#08618B] text-white rounded-xl font-semibold transition shadow-sm" title="Abrir ficha en el catálogo de GeoNode">
+                  <i data-feather="external-link" class="w-4 h-4"></i>
+                  <span>Ver en GeoNode</span>
+                </a>
+              ` : ""}
+
+              ${metadataUrl ? `
+                <a href="${escapeHtml(metadataUrl)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-semibold border border-slate-200 dark:border-slate-600 transition" title="Ver metadatos completos">
+                  <i data-feather="file-text" class="w-4 h-4"></i>
+                  <span>Ver Metadatos</span>
+                </a>
+              ` : ""}
+
+              ${isWms ? `
+              <button 
+                type="button"
+                onclick="openPreviewModalByIndex(${index})"
+                class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-[#0B7BAF] dark:text-sky-300 rounded-xl font-semibold border border-sky-200 dark:border-sky-800/80 transition shadow-sm"
+                title="Abrir visor interactivo en ventana emergente"
+              >
+                <i data-feather="eye" class="w-4 h-4"></i>
+                <span>Vista Previa</span>
+              </button>
+              ` : ""}
             </div>
 
           </article>
@@ -1092,8 +1033,23 @@
       const extBtn = document.getElementById("preview-open-external");
       const dsLink = document.getElementById("preview-dataset-link");
 
-      const isVector = (layer.layer_type || "VECTOR").toUpperCase() === "VECTOR";
-      const badgeText = isVector ? "VECTOR" : "RASTER";
+      const rawType = (layer.layer_type || "VECTOR").toUpperCase();
+      let badgeClass = "badge-vector";
+      let badgeText = "VECTOR";
+      if (rawType === "RASTER") {
+        badgeClass = "badge-raster";
+        badgeText = "RASTER";
+      } else if (rawType === "MAPA") {
+        badgeClass = "badge-mapa";
+        badgeText = "MAPA";
+      } else if (rawType === "DASHBOARD") {
+        badgeClass = "badge-dashboard";
+        badgeText = "DASHBOARD";
+      } else if (rawType === "GEOHISTORIA") {
+        badgeClass = "badge-geohistoria";
+        badgeText = "GEOHISTORIA";
+      }
+
       const title = layer.title || layer.layer_name;
       const embedUrl = getLayerEmbedUrl(layer);
 
@@ -1101,7 +1057,7 @@
       subtitleEl.textContent = layer.layer_name;
       nodeEl.textContent = layer.node || "INTA";
       badgeEl.textContent = badgeText;
-      badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${isVector ? 'badge-vector' : 'badge-raster'}`;
+      badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${badgeClass}`;
 
       // Enlaces externos a GeoNode oficial (se abren en pestaña nueva sin restricciones de iframe)
       extBtn.href = embedUrl || layer.dataset_url || "#";
@@ -1130,7 +1086,7 @@
       }
 
       // Agregar capa WMS en vivo
-      if (layer.wms_url && layer.layer_name) {
+      if (layer.wms_url && layer.layer_name && (rawType === "VECTOR" || rawType === "RASTER")) {
         currentWmsLayer = L.tileLayer.wms(layer.wms_url, {
           layers: layer.layer_name,
           format: "image/png",
